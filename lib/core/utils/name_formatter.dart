@@ -11,7 +11,7 @@ class NameFormatter {
       return parts[0];
     }
     final firstName = parts[0];
-    final lastInitial = parts.last.isNotEmpty ? parts.last[0] + '.' : '';
+    final lastInitial = parts.last.isNotEmpty ? '${parts.last[0]}.' : '';
     return '$firstName $lastInitial'.trim();
   }
 

@@ -21,7 +21,7 @@ class AppColors {
 
   // Accent (highlights) — marigold
   static const accent = Color(0xFFF2A93B);
-  static const accentSoft = Color(0xFCEBCB);
+  static const accentSoft = Color(0xFFFCEBCB);
 
   // Danger (errors)
   static const danger = Color(0xFFD64545);

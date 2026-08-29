@@ -6,7 +6,6 @@ import 'colors.dart';
 class AppTheme {
   static ThemeData lightTheme() {
     final notoFont = GoogleFonts.notoSans();
-    final notoDevanagari = GoogleFonts.notoSansDevanagari();
 
     return ThemeData(
       useMaterial3: true,
