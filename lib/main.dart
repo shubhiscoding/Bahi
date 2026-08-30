@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/services/supabase_client.dart';
 import 'core/theme/theme.dart';
-import 'features/auth/screens/sign_in_screen.dart';
+import 'core/navigation/app_router.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,7 +26,7 @@ class MyApp extends ConsumerWidget {
       title: 'बही',
       theme: AppTheme.lightTheme(),
       debugShowCheckedModeBanner: false,
-      home: const SignInScreen(),
+      home: const AppRouter(),
     );
   }
 }
