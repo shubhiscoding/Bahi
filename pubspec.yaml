@@ -58,6 +58,9 @@ dependencies:
   # Share intent
   share_plus: ^10.1.4
 
+  # Devanagari<->Latin romanization for Hinglish/cross-script search matching
+  inditrans: ^0.12.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
