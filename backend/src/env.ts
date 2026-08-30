@@ -12,6 +12,8 @@ function required(name: string): string {
 
 export const env = {
   databaseUrl: required('DATABASE_URL'),
-  supabaseJwtSecret: required('SUPABASE_JWT_SECRET'),
+  // Supabase project uses asymmetric JWT signing (ES256) — verified via
+  // JWKS, not a shared secret. See middleware/auth.ts.
+  supabaseJwksUrl: required('SUPABASE_JWKS_URL'),
   port: Number(process.env.PORT ?? 4000),
 };
