@@ -4,7 +4,8 @@ import '../../auth/providers/auth_provider.dart';
 import '../../business/providers/business_providers.dart';
 import '../repositories/inventory_repository.dart';
 
-/// Realtime stream of inventory items for the current business
+/// Live stream of inventory items for the current business (REST fetch +
+/// Socket.IO patches — see InventoryRepository.watchItems)
 final inventoryItemsProvider = StreamProvider<List<InventoryItem>>((ref) {
   final businessAsync = ref.watch(currentBusinessProvider);
 
@@ -35,7 +36,9 @@ class ItemFormInput {
   });
 }
 
-/// Save an item (create or update depending on itemId)
+/// Save an item (create or update depending on itemId).
+/// updated_by/updated_at are stamped server-side now — the backend derives
+/// the acting user from the JWT, not a client-supplied value.
 final saveItemProvider =
     FutureProvider.autoDispose.family<InventoryItem, ItemFormInput>((ref, input) async {
   final authState = await ref.watch(authSessionProvider.future);
@@ -51,22 +54,24 @@ final saveItemProvider =
       price: input.price,
       quantity: input.quantity,
       unit: input.unit,
-      updatedBy: authState.user!.id,
     );
   } else {
     return InventoryRepository.updateItem(
+      businessId: business.id,
       itemId: input.itemId!,
       name: input.name,
       price: input.price,
       quantity: input.quantity,
       unit: input.unit,
-      updatedBy: authState.user!.id,
     );
   }
 });
 
-/// Delete an item (owner-only, enforced by RLS)
+/// Delete an item (owner-only, enforced by backend middleware)
 final deleteItemProvider =
     FutureProvider.autoDispose.family<void, String>((ref, itemId) async {
-  await InventoryRepository.deleteItem(itemId);
+  final business = await ref.watch(currentBusinessProvider.future);
+  if (business == null) throw Exception('No business selected');
+
+  await InventoryRepository.deleteItem(businessId: business.id, itemId: itemId);
 });

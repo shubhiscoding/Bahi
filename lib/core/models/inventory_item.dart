@@ -21,36 +21,44 @@ class InventoryItem {
     required this.createdAt,
   });
 
+  // Backend (Node/Express + Prisma) returns camelCase JSON. Prisma's
+  // Decimal type serializes price as a STRING (not a number), so it's
+  // parsed accordingly here.
   factory InventoryItem.fromJson(Map<String, dynamic> json) {
     return InventoryItem(
       id: json['id'] ?? '',
-      businessId: json['business_id'] ?? '',
+      businessId: json['businessId'] ?? '',
       name: json['name'] ?? '',
-      price: (json['price'] is int)
-          ? (json['price'] as int).toDouble()
-          : json['price'] ?? 0.0,
+      price: _parsePrice(json['price']),
       quantity: json['quantity'] ?? 0,
       unit: json['unit'] ?? 'piece',
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'])
           : DateTime.now(),
-      updatedBy: json['updated_by'] ?? '',
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+      updatedBy: json['updatedBy'] ?? '',
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
     );
   }
 
+  static double _parsePrice(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
-        'business_id': businessId,
+        'businessId': businessId,
         'name': name,
         'price': price,
         'quantity': quantity,
         'unit': unit,
-        'updated_at': updatedAt.toIso8601String(),
-        'updated_by': updatedBy,
-        'created_at': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'updatedBy': updatedBy,
+        'createdAt': createdAt.toIso8601String(),
       };
 
   InventoryItem copyWith({

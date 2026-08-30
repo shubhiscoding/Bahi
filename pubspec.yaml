@@ -19,9 +19,14 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Auth & backend
+  # Auth (Supabase Auth / Google OAuth only — all data now goes through
+  # the Node/Express backend below, not direct Supabase client calls)
   supabase_flutter: ^2.0.0
   # google_sign_in: ^6.1.6 (temporarily removed; use Supabase OAuth flow instead; gradle issue)
+
+  # Backend API client + live updates
+  dio: ^5.7.0
+  socket_io_client: ^2.0.3+1
 
   # State management
   flutter_riverpod: ^2.4.10

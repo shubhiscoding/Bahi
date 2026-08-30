@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
+import '../../../core/models/business.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/name_formatter.dart';
 import '../../business/providers/business_providers.dart';
 import '../providers/team_providers.dart';
-import '../repositories/team_repository.dart';
 
 /// Team Screen (design.md §6)
 /// Member list, invite (re-shows invite code), owner-only remove.
@@ -151,7 +151,7 @@ class TeamScreen extends ConsumerWidget {
 }
 
 class _MemberCard extends ConsumerWidget {
-  final TeamMember member;
+  final BusinessMember member;
   final bool isCurrentUserOwner;
   final String? businessId;
 
