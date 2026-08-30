@@ -496,6 +496,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.1.2"
+  inditrans:
+    dependency: "direct main"
+    description:
+      name: inditrans
+      sha256: ea6f5e77344ec07884e347c490ccaef70fa9ab53c98a6180be7007fcff723cc3
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.12.1"
   io:
     dependency: transitive
     description:
@@ -1221,6 +1229,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  universal_ffi:
+    dependency: transitive
+    description:
+      name: universal_ffi
+      sha256: a4071511e11b96fc741a91f89dd6891ffce196c45e85f89983beb31cde695dee
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.5.0"
   url_launcher:
     dependency: transitive
     description:
@@ -1309,6 +1325,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "15.3.0"
+  wasm_ffi:
+    dependency: transitive
+    description:
+      name: wasm_ffi
+      sha256: "950238f09e2d18b85c5c4356833a06319b049c1d19f936db32c3f0d8194e30b5"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.3.0"
   watcher:
     dependency: transitive
     description:
