@@ -11,6 +11,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Temporary request logger — helps diagnose whether expected requests
+// (e.g. /auth/sync) are actually reaching the backend at all.
+app.use((req, _res, next) => {
+  console.log(`${new Date().toISOString()} ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 app.use('/auth', authRoutes);
