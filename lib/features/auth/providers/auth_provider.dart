@@ -48,3 +48,23 @@ final signOutProvider = FutureProvider.autoDispose<void>((ref) async {
     rethrow;
   }
 });
+
+/// Current user's profile row (full_name etc.) — used for the persistent
+/// avatar header (design.md rule 4) and "edited by" attribution (rule 10).
+final currentUserProfileProvider = FutureProvider<User?>((ref) async {
+  final authState = await ref.watch(authSessionProvider.future);
+  if (authState.user == null) return null;
+
+  try {
+    final response = await SupabaseClientService.client
+        .from('profiles')
+        .select()
+        .eq('id', authState.user!.id)
+        .single();
+
+    return User.fromJson(response);
+  } catch (e) {
+    print('Error fetching user profile: $e');
+    return null;
+  }
+});

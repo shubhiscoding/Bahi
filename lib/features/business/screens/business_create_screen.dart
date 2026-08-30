@@ -40,6 +40,9 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
 
     try {
       final business = await ref.read(createBusinessProvider(name).future);
+      // Refresh business state so the router picks up the new membership
+      ref.invalidate(currentBusinessProvider);
+      ref.invalidate(userBusinessesProvider);
       setState(() => _createdInviteCode = business.inviteCode);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -194,9 +197,10 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
               const SizedBox(height: 16),
 
               // Secondary action: Continue (smaller button)
+              // Pop to root so AppRouter re-renders with the new business membership
               OutlinedButton(
                 onPressed: () {
-                  Navigator.of(context).pop();
+                  Navigator.of(context).popUntil((route) => route.isFirst);
                 },
                 child: Text('आगे बढ़ें'),
               ),
