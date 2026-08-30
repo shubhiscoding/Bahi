@@ -6,9 +6,8 @@ import '../repositories/business_repository.dart';
 /// Create a new business (backend derives owner from the JWT)
 final createBusinessProvider =
     FutureProvider.autoDispose.family<Business, String>((ref, businessName) async {
-  // Ensure there's a session before calling the backend
-  final authState = await ref.watch(authSessionProvider.future);
-  if (authState.user == null) {
+  final authState = ref.watch(authSessionProvider).valueOrNull;
+  if (authState == null || !authState.isAuthenticated) {
     throw Exception('Not authenticated');
   }
 
@@ -18,31 +17,35 @@ final createBusinessProvider =
 /// Join a business by invite code (backend derives user from the JWT)
 final joinBusinessProvider =
     FutureProvider.autoDispose.family<void, String>((ref, inviteCode) async {
-  final authState = await ref.watch(authSessionProvider.future);
-  if (authState.user == null) {
+  final authState = ref.watch(authSessionProvider).valueOrNull;
+  if (authState == null || !authState.isAuthenticated) {
     throw Exception('Not authenticated');
   }
 
   await BusinessRepository.joinBusinessByCode(inviteCode: inviteCode);
 });
 
-/// Get all businesses for current user
+/// Get all businesses for current user.
+///
+/// Watches ref.watch(authSessionProvider) (the AsyncValue, not .future) so
+/// this reliably re-runs on every sign-in/sign-out transition — not just
+/// the first time authSessionProvider resolves.
 final userBusinessesProvider = FutureProvider<List<Business>>((ref) async {
-  final authState = await ref.watch(authSessionProvider.future);
-  if (authState.user == null) return [];
+  final authState = ref.watch(authSessionProvider).valueOrNull;
+  if (authState == null || !authState.isAuthenticated) return [];
 
   return BusinessRepository.getUserBusinesses();
 });
 
-/// Current selected business (first one for now; can be expanded to user selection)
+/// Current selected business (first one for now; can be expanded to user
+/// selection). Deliberately does NOT catch errors into null — a real
+/// fetch failure should surface as a retryable error (AppRouter shows an
+/// error screen), not get miscached as "this user has no business",
+/// which previously caused a business owner to be wrongly routed back to
+/// Create/Join after a transient error during re-login.
 final currentBusinessProvider = FutureProvider<Business?>((ref) async {
-  try {
-    final businesses = await ref.watch(userBusinessesProvider.future);
-    return businesses.isNotEmpty ? businesses[0] : null;
-  } catch (e) {
-    print('Error getting current business: $e');
-    return null;
-  }
+  final businesses = await ref.watch(userBusinessesProvider.future);
+  return businesses.isNotEmpty ? businesses[0] : null;
 });
 
 /// Generates a fresh 5-minute, single-use invite code — call right when

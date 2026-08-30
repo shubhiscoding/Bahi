@@ -21,9 +21,11 @@ model Profile {
   fullName  String   @map("full_name")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  ownedBusinesses Business[]      @relation("BusinessOwner")
-  memberships     BusinessMember[]
-  editedItems     InventoryItem[] @relation("ItemEditor")
+  ownedBusinesses    Business[]      @relation("BusinessOwner")
+  memberships        BusinessMember[]
+  editedItems        InventoryItem[] @relation("ItemEditor")
+  inviteCodesUsed    InviteCode[]    @relation("InviteCodeUsedBy")
+  inviteCodesCreated InviteCode[]    @relation("InviteCodeCreatedBy")
 
   @@map("profiles")
 }
@@ -34,20 +36,33 @@ model Business {
   ownerId   String   @map("owner_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  // Ephemeral invite code — OTP-style (matches the UPI/banking OTP mental
-  // model this audience already knows): generated on demand when the
-  // owner taps "Share", valid 5 minutes, single-use. Not a permanent
-  // business attribute, so no @unique constraint — validity (not global
-  // uniqueness) is what matters, checked in businessService.joinByCode.
-  inviteCode          String?   @map("invite_code")
-  inviteCodeExpiresAt DateTime? @map("invite_code_expires_at") @db.Timestamptz
-  inviteCodeUsedAt    DateTime? @map("invite_code_used_at") @db.Timestamptz
-
-  owner   Profile          @relation("BusinessOwner", fields: [ownerId], references: [id])
-  members BusinessMember[]
-  items   InventoryItem[]
+  owner       Profile          @relation("BusinessOwner", fields: [ownerId], references: [id])
+  members     BusinessMember[]
+  items       InventoryItem[]
+  inviteCodes InviteCode[]
 
   @@map("businesses")
+}
+
+/// Ephemeral, OTP-style invite codes — one row per generated code, not a
+/// single column on Business. Multiple codes can be valid concurrently
+/// for the same business (e.g. one generated per new hire); each is
+/// independently 5-minute, single-use.
+model InviteCode {
+  id         String    @id @default(uuid()) @db.Uuid
+  businessId String    @map("business_id") @db.Uuid
+  code       String    @unique
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz
+  usedAt     DateTime? @map("used_at") @db.Timestamptz
+  usedBy     String?   @map("used_by") @db.Uuid
+  createdBy  String    @map("created_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  usedByProfile     Profile? @relation("InviteCodeUsedBy", fields: [usedBy], references: [id])
+  createdByProfile  Profile  @relation("InviteCodeCreatedBy", fields: [createdBy], references: [id])
+
+  @@map("invite_codes")
 }
 
 model BusinessMember {

@@ -72,7 +72,7 @@ businessRoutes.post(
   '/:businessId/invite-code',
   requireOwner,
   asyncHandler(async (req, res) => {
-    const result = await businessService.generateInviteCode(req.params.businessId);
+    const result = await businessService.generateInviteCode(req.params.businessId, req.user!.id);
     res.json(result);
   }),
 );

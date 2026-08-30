@@ -2,7 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supa;
 import '../../../core/models/user.dart';
 import '../../../core/services/api_client.dart';
+import '../../../core/services/socket_service.dart';
 import '../../../core/services/supabase_client.dart';
+import '../../business/providers/business_providers.dart';
+import '../../inventory/providers/inventory_providers.dart';
+import '../../team/providers/team_providers.dart';
 
 /// Auth state model
 class AuthState {
@@ -40,13 +44,28 @@ final googleSignInProvider = FutureProvider.autoDispose<void>((ref) async {
   }
 });
 
-/// Sign out
+/// Sign out.
+///
+/// Explicitly invalidates every user-scoped provider and disconnects the
+/// socket. Without this, a second user signing in on the same device
+/// before these providers naturally refresh could briefly see the
+/// previous user's cached business/inventory/team data — not just a UX
+/// bug, a real data-leak risk on a shared device (which this app's users
+/// commonly are, per design.md).
 final signOutProvider = FutureProvider.autoDispose<void>((ref) async {
   try {
     await SupabaseClientService.auth.signOut();
   } catch (e) {
     print('Sign-out error: $e');
     rethrow;
+  } finally {
+    SocketService.disconnect();
+    ref.invalidate(currentUserProfileProvider);
+    ref.invalidate(userBusinessesProvider);
+    ref.invalidate(currentBusinessProvider);
+    ref.invalidate(inventoryItemsProvider);
+    ref.invalidate(teamMembersProvider);
+    ref.invalidate(currentUserRoleProvider);
   }
 });
 
@@ -57,15 +76,17 @@ final signOutProvider = FutureProvider.autoDispose<void>((ref) async {
 /// read-only endpoint, so the backend's profiles row is always kept in
 /// sync with the JWT's latest claims without a separate "call this once
 /// after sign-in" step to wire up.
+///
+/// Uses ref.watch(authSessionProvider) (the AsyncValue, not .future) so
+/// this reliably re-runs on every auth transition, and does NOT swallow
+/// errors into a cached "null" — a transient failure right after sign-in
+/// should surface as a retryable error, not get permanently miscached as
+/// "this user has no profile" (which is exactly what caused a business
+/// owner to be wrongly shown Create/Join again after logging back in).
 final currentUserProfileProvider = FutureProvider<User?>((ref) async {
-  final authState = await ref.watch(authSessionProvider.future);
-  if (authState.user == null) return null;
+  final authState = ref.watch(authSessionProvider).valueOrNull;
+  if (authState == null || !authState.isAuthenticated) return null;
 
-  try {
-    final response = await ApiClient.instance.post('/auth/sync');
-    return User.fromJson(response.data);
-  } catch (e) {
-    print('Error syncing user profile: $e');
-    return null;
-  }
+  final response = await ApiClient.instance.post('/auth/sync');
+  return User.fromJson(response.data);
 });

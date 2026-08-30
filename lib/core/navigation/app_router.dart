@@ -20,7 +20,7 @@ class AppRouter extends ConsumerWidget {
 
     return authState.when(
       loading: () => _loadingScreen(),
-      error: (err, stack) => _errorScreen(err),
+      error: (err, stack) => _errorScreen(err, onRetry: () => ref.invalidate(authSessionProvider)),
       data: (state) {
         // No session → Sign-In
         if (!state.isAuthenticated) {
@@ -37,14 +37,23 @@ class AppRouter extends ConsumerWidget {
 
         return profileState.when(
           loading: () => _loadingScreen(),
-          error: (err, stack) => _errorScreen(err),
+          error: (err, stack) => _errorScreen(
+            err,
+            onRetry: () => ref.invalidate(currentUserProfileProvider),
+          ),
           data: (_) {
             // Profile synced → check business membership
             final businessState = ref.watch(currentBusinessProvider);
 
             return businessState.when(
               loading: () => _loadingScreen(),
-              error: (err, stack) => _errorScreen(err),
+              error: (err, stack) => _errorScreen(
+                err,
+                onRetry: () {
+                  ref.invalidate(userBusinessesProvider);
+                  ref.invalidate(currentBusinessProvider);
+                },
+              ),
               data: (business) {
                 // No business membership → Create/Join screen
                 if (business == null) {
@@ -70,16 +79,28 @@ class AppRouter extends ConsumerWidget {
     );
   }
 
-  Widget _errorScreen(Object err) {
+  Widget _errorScreen(Object err, {required VoidCallback onRetry}) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(
-            'कुछ गलत हुआ। ऐप फिर से खोलें।',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 18, color: AppColors.danger),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, color: AppColors.danger, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                'कुछ गलत हुआ।',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, color: AppColors.danger),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: onRetry,
+                child: const Text('फिर से कोशिश करें'),
+              ),
+            ],
           ),
         ),
       ),
