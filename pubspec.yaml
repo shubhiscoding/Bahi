@@ -37,9 +37,9 @@ dependencies:
   path: ^1.8.3
   path_provider: ^2.1.0
 
-  # Voice input/output (temporarily removed due to gradle issues; will integrate in separate pass)
-  # speech_to_text: ^6.1.1
-  # flutter_tts: ^4.2.5
+  # Voice input/output
+  speech_to_text: ^7.0.0
+  flutter_tts: ^4.2.5
 
   # Connectivity detection
   connectivity_plus: ^5.0.2
