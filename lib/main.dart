@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/services/supabase_client.dart';
 import 'core/theme/theme.dart';
@@ -9,6 +10,9 @@ void main() async {
 
   // Initialize Supabase
   await SupabaseClientService.initialize();
+
+  // Initialize the downloader used for in-app update APKs (plan §O/§8)
+  await FlutterDownloader.initialize();
 
   runApp(
     const ProviderScope(
