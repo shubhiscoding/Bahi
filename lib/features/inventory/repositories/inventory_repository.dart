@@ -1,74 +1,101 @@
+import 'dart:async';
 import '../../../core/models/inventory_item.dart';
-import '../../../core/services/supabase_client.dart';
+import '../../../core/services/api_client.dart';
+import '../../../core/services/socket_service.dart';
 
-/// Inventory repository — CRUD for inventory_items.
-/// Every write sets updated_by/updated_at (hard requirement per design.md §9 offline plan).
+/// Inventory repository — calls the Node/Express backend. Every write
+/// sets updated_by/updated_at server-side (hard requirement per §9),
+/// enforced now in backend/src/services/inventoryService.ts.
 class InventoryRepository {
-  /// Stream of items for a business, ordered by name.
-  /// Used to feed a Riverpod StreamProvider for Realtime updates.
+  /// Live list of items for a business: initial REST fetch, then patched
+  /// by Socket.IO events (item:created/updated/deleted) — replaces the
+  /// old Supabase Realtime `.stream()`.
   static Stream<List<InventoryItem>> watchItems(String businessId) {
-    return SupabaseClientService.client
-        .from('inventory_items')
-        .stream(primaryKey: ['id'])
-        .eq('business_id', businessId)
-        .order('name')
-        .map((rows) => rows.map((r) => InventoryItem.fromJson(r)).toList());
+    final controller = StreamController<List<InventoryItem>>();
+    List<InventoryItem> current = [];
+
+    void emit() => controller.add(List.unmodifiable(current));
+
+    Future<void> loadInitial() async {
+      current = await _fetchItems(businessId);
+      emit();
+    }
+
+    final socket = SocketService.connect();
+    SocketService.joinBusiness(businessId);
+
+    void onCreated(dynamic data) {
+      final item = InventoryItem.fromJson(Map<String, dynamic>.from(data));
+      current = [...current, item]..sort((a, b) => a.name.compareTo(b.name));
+      emit();
+    }
+
+    void onUpdated(dynamic data) {
+      final item = InventoryItem.fromJson(Map<String, dynamic>.from(data));
+      current = current.map((i) => i.id == item.id ? item : i).toList()
+        ..sort((a, b) => a.name.compareTo(b.name));
+      emit();
+    }
+
+    void onDeleted(dynamic data) {
+      final id = Map<String, dynamic>.from(data)['id'] as String;
+      current = current.where((i) => i.id != id).toList();
+      emit();
+    }
+
+    socket.on('item:created', onCreated);
+    socket.on('item:updated', onUpdated);
+    socket.on('item:deleted', onDeleted);
+
+    loadInitial();
+
+    controller.onCancel = () {
+      socket.off('item:created', onCreated);
+      socket.off('item:updated', onUpdated);
+      socket.off('item:deleted', onDeleted);
+    };
+
+    return controller.stream;
   }
 
-  /// Create a new item
+  static Future<List<InventoryItem>> _fetchItems(String businessId) async {
+    final response = await ApiClient.instance.get('/businesses/$businessId/items');
+    return (response.data as List).map((i) => InventoryItem.fromJson(i)).toList();
+  }
+
   static Future<InventoryItem> createItem({
     required String businessId,
     required String name,
     required double price,
     required int quantity,
     required String unit,
-    required String updatedBy,
   }) async {
-    final response = await SupabaseClientService.client
-        .from('inventory_items')
-        .insert({
-          'business_id': businessId,
-          'name': name,
-          'price': price,
-          'quantity': quantity,
-          'unit': unit,
-          'updated_by': updatedBy,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .select()
-        .single();
-
-    return InventoryItem.fromJson(response);
+    final response = await ApiClient.instance.post(
+      '/businesses/$businessId/items',
+      data: {'name': name, 'price': price, 'quantity': quantity, 'unit': unit},
+    );
+    return InventoryItem.fromJson(response.data);
   }
 
-  /// Update an existing item — always re-stamps updated_by/updated_at
   static Future<InventoryItem> updateItem({
+    required String businessId,
     required String itemId,
     required String name,
     required double price,
     required int quantity,
     required String unit,
-    required String updatedBy,
   }) async {
-    final response = await SupabaseClientService.client
-        .from('inventory_items')
-        .update({
-          'name': name,
-          'price': price,
-          'quantity': quantity,
-          'unit': unit,
-          'updated_by': updatedBy,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', itemId)
-        .select()
-        .single();
-
-    return InventoryItem.fromJson(response);
+    final response = await ApiClient.instance.put(
+      '/businesses/$businessId/items/$itemId',
+      data: {'name': name, 'price': price, 'quantity': quantity, 'unit': unit},
+    );
+    return InventoryItem.fromJson(response.data);
   }
 
-  /// Delete an item (owner-only — enforced by RLS server-side too)
-  static Future<void> deleteItem(String itemId) async {
-    await SupabaseClientService.client.from('inventory_items').delete().eq('id', itemId);
+  static Future<void> deleteItem({
+    required String businessId,
+    required String itemId,
+  }) async {
+    await ApiClient.instance.delete('/businesses/$businessId/items/$itemId');
   }
 }

@@ -1,27 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/models/business.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../business/providers/business_providers.dart';
 import '../repositories/team_repository.dart';
 
-/// Realtime stream of team members (joined with profile names) for the
+/// Live stream of team members (REST fetch + Socket.IO patches) for the
 /// current business.
-final teamMembersProvider = StreamProvider<List<TeamMember>>((ref) async* {
-  final business = await ref.watch(currentBusinessProvider.future);
-  if (business == null) {
-    yield <TeamMember>[];
-    return;
-  }
+final teamMembersProvider = StreamProvider<List<BusinessMember>>((ref) {
+  final businessAsync = ref.watch(currentBusinessProvider);
 
-  final rowsStream = TeamRepository.watchMemberRows(business.id);
-
-  await for (final rows in rowsStream) {
-    final names = await TeamRepository.fetchProfileNames(
-      rows.map((r) => r.userId).toList(),
-    );
-    yield rows
-        .map((row) => TeamMember(row: row, fullName: names[row.userId] ?? '?'))
-        .toList();
-  }
+  return businessAsync.when(
+    data: (business) {
+      if (business == null) return Stream.value(<BusinessMember>[]);
+      return TeamRepository.watchMembers(business.id);
+    },
+    loading: () => Stream.value(<BusinessMember>[]),
+    error: (err, stack) => Stream.value(<BusinessMember>[]),
+  );
 });
 
 /// Current user's role in the current business ('owner' | 'member' | null)
@@ -38,7 +33,7 @@ final currentUserRoleProvider = FutureProvider<String?>((ref) async {
   );
 });
 
-/// Remove a member (owner-only, enforced by RLS)
+/// Remove a member (owner-only, enforced by backend middleware)
 final removeMemberProvider =
     FutureProvider.autoDispose.family<void, String>((ref, userId) async {
   final business = await ref.watch(currentBusinessProvider.future);

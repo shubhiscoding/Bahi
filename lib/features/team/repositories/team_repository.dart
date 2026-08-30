@@ -1,73 +1,49 @@
-import '../../../core/services/supabase_client.dart';
+import 'dart:async';
+import '../../../core/models/business.dart';
+import '../../../core/services/api_client.dart';
+import '../../../core/services/socket_service.dart';
 
-/// A raw business_members row (no join — Realtime .stream() doesn't support embeds)
-class TeamMemberRow {
-  final String userId;
-  final String businessId;
-  final String role; // 'owner' | 'member'
-  final DateTime joinedAt;
-
-  TeamMemberRow({
-    required this.userId,
-    required this.businessId,
-    required this.role,
-    required this.joinedAt,
-  });
-
-  bool get isOwner => role == 'owner';
-
-  factory TeamMemberRow.fromJson(Map<String, dynamic> json) {
-    return TeamMemberRow(
-      userId: json['user_id'] ?? '',
-      businessId: json['business_id'] ?? '',
-      role: json['role'] ?? 'member',
-      joinedAt: json['joined_at'] != null
-          ? DateTime.parse(json['joined_at'])
-          : DateTime.now(),
-    );
-  }
-}
-
-/// A member row joined with their profile's full name, for display.
-class TeamMember {
-  final TeamMemberRow row;
-  final String fullName;
-
-  TeamMember({required this.row, required this.fullName});
-
-  String get userId => row.userId;
-  String get role => row.role;
-  bool get isOwner => row.isOwner;
-  DateTime get joinedAt => row.joinedAt;
-}
-
-/// Team repository — member list + remove (owner-only)
+/// Team repository — calls the Node/Express backend. GET /members already
+/// joins profile names server-side, so no separate profile lookup is
+/// needed here (unlike the old Supabase Realtime .stream() version, which
+/// couldn't do embedded joins).
 class TeamRepository {
-  /// Stream of raw member rows for a business (no profile join — joined
-  /// client-side in the provider layer since Realtime .stream() doesn't
-  /// support embedded selects).
-  static Stream<List<TeamMemberRow>> watchMemberRows(String businessId) {
-    return SupabaseClientService.client
-        .from('business_members')
-        .stream(primaryKey: ['business_id', 'user_id'])
-        .eq('business_id', businessId)
-        .map((rows) => rows.map((r) => TeamMemberRow.fromJson(r)).toList());
+  /// Live list of members for a business: initial REST fetch, then
+  /// patched by Socket.IO events (member:added/removed).
+  static Stream<List<BusinessMember>> watchMembers(String businessId) {
+    final controller = StreamController<List<BusinessMember>>();
+    List<BusinessMember> current = [];
+
+    void emit() => controller.add(List.unmodifiable(current));
+
+    Future<void> loadInitial() async {
+      current = await _fetchMembers(businessId);
+      emit();
+    }
+
+    final socket = SocketService.connect();
+    SocketService.joinBusiness(businessId);
+
+    // member:added/removed only carry a partial payload (userId, fullName),
+    // so simplest correct behavior is to refetch the full list on either event.
+    void onMemberChanged(dynamic _) => loadInitial();
+
+    socket.on('member:added', onMemberChanged);
+    socket.on('member:removed', onMemberChanged);
+
+    loadInitial();
+
+    controller.onCancel = () {
+      socket.off('member:added', onMemberChanged);
+      socket.off('member:removed', onMemberChanged);
+    };
+
+    return controller.stream;
   }
 
-  /// Fetch full_name for a set of user IDs
-  static Future<Map<String, String>> fetchProfileNames(List<String> userIds) async {
-    if (userIds.isEmpty) return {};
-
-    final response = await SupabaseClientService.client
-        .from('profiles')
-        .select('id, full_name')
-        .inFilter('id', userIds);
-
-    final map = <String, String>{};
-    for (final row in response) {
-      map[row['id']] = row['full_name'] ?? '?';
-    }
-    return map;
+  static Future<List<BusinessMember>> _fetchMembers(String businessId) async {
+    final response = await ApiClient.instance.get('/businesses/$businessId/members');
+    return (response.data as List).map((m) => BusinessMember.fromJson(m)).toList();
   }
 
   /// Fetch the current user's role in a business (used for owner-only gating)
@@ -75,28 +51,16 @@ class TeamRepository {
     required String businessId,
     required String userId,
   }) async {
-    try {
-      final response = await SupabaseClientService.client
-          .from('business_members')
-          .select('role')
-          .eq('business_id', businessId)
-          .eq('user_id', userId)
-          .single();
-      return response['role'] as String?;
-    } catch (e) {
-      return null;
-    }
+    final members = await _fetchMembers(businessId);
+    final me = members.where((m) => m.userId == userId).firstOrNull;
+    return me?.role;
   }
 
-  /// Remove a member (owner-only — enforced by RLS server-side too)
+  /// Remove a member (owner-only, enforced by backend middleware)
   static Future<void> removeMember({
     required String businessId,
     required String userId,
   }) async {
-    await SupabaseClientService.client
-        .from('business_members')
-        .delete()
-        .eq('business_id', businessId)
-        .eq('user_id', userId);
+    await ApiClient.instance.delete('/businesses/$businessId/members/$userId');
   }
 }

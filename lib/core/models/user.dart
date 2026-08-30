@@ -9,19 +9,21 @@ class User {
     required this.createdAt,
   });
 
+  // Backend (Node/Express + Prisma) returns camelCase JSON, not the
+  // snake_case Supabase's PostgREST used to return.
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'] ?? '',
-      fullName: json['full_name'] ?? '',
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+      fullName: json['fullName'] ?? '',
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
     );
   }
 
   Map<String, dynamic> toJson() => {
         'id': id,
-        'full_name': fullName,
-        'created_at': createdAt.toIso8601String(),
+        'fullName': fullName,
+        'createdAt': createdAt.toIso8601String(),
       };
 }

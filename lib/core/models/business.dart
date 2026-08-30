@@ -13,14 +13,15 @@ class Business {
     required this.createdAt,
   });
 
+  // Backend (Node/Express + Prisma) returns camelCase JSON.
   factory Business.fromJson(Map<String, dynamic> json) {
     return Business(
       id: json['id'] ?? '',
       name: json['name'] ?? '',
-      ownerId: json['owner_id'] ?? '',
-      inviteCode: json['invite_code'] ?? '',
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
+      ownerId: json['ownerId'] ?? '',
+      inviteCode: json['inviteCode'] ?? '',
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
     );
   }
@@ -28,9 +29,9 @@ class Business {
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
-        'owner_id': ownerId,
-        'invite_code': inviteCode,
-        'created_at': createdAt.toIso8601String(),
+        'ownerId': ownerId,
+        'inviteCode': inviteCode,
+        'createdAt': createdAt.toIso8601String(),
       };
 }
 
@@ -38,32 +39,30 @@ class BusinessMember {
   final String businessId;
   final String userId;
   final String role; // 'owner' or 'member'
+  final String fullName;
   final DateTime joinedAt;
 
   BusinessMember({
     required this.businessId,
     required this.userId,
     required this.role,
+    required this.fullName,
     required this.joinedAt,
   });
 
   bool get isOwner => role == 'owner';
 
+  // Backend's GET /businesses/:id/members already joins profile names
+  // server-side, so fullName arrives directly (no separate lookup needed).
   factory BusinessMember.fromJson(Map<String, dynamic> json) {
     return BusinessMember(
-      businessId: json['business_id'] ?? '',
-      userId: json['user_id'] ?? '',
+      businessId: json['businessId'] ?? '',
+      userId: json['userId'] ?? '',
       role: json['role'] ?? 'member',
-      joinedAt: json['joined_at'] != null
-          ? DateTime.parse(json['joined_at'])
+      fullName: json['fullName'] ?? '?',
+      joinedAt: json['joinedAt'] != null
+          ? DateTime.parse(json['joinedAt'])
           : DateTime.now(),
     );
   }
-
-  Map<String, dynamic> toJson() => {
-        'business_id': businessId,
-        'user_id': userId,
-        'role': role,
-        'joined_at': joinedAt.toIso8601String(),
-      };
 }
