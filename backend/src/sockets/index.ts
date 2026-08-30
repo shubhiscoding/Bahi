@@ -24,17 +24,24 @@ export function initSockets(httpServer: HttpServer) {
   });
 
   io.on('connection', (socket: Socket) => {
+    // Wrapped in try/catch: a thrown/rejected error inside a bare async
+    // socket event handler is an unhandled rejection that crashes the
+    // whole process (same class of bug fixed via asyncHandler for REST).
     socket.on('join:business', async (businessId: string) => {
-      const userId = socket.data.userId as string;
+      try {
+        const userId = socket.data.userId as string;
 
-      // Re-check membership before letting the socket join the room —
-      // same authorization rule as the REST middleware.
-      const membership = await prisma.businessMember.findUnique({
-        where: { businessId_userId: { businessId, userId } },
-      });
+        // Re-check membership before letting the socket join the room —
+        // same authorization rule as the REST middleware.
+        const membership = await prisma.businessMember.findUnique({
+          where: { businessId_userId: { businessId, userId } },
+        });
 
-      if (membership) {
-        socket.join(roomFor(businessId));
+        if (membership) {
+          socket.join(roomFor(businessId));
+        }
+      } catch (err) {
+        console.error('join:business error', err);
       }
     });
 

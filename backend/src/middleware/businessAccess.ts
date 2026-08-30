@@ -1,15 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../prisma';
+import { asyncHandler } from '../utils/asyncHandler';
 
 /**
  * All the authorization logic that RLS was failing to express (recursion,
  * chicken-and-egg insert checks) now lives here — plain, debuggable
  * TypeScript instead of recursive SQL policies.
+ *
+ * Wrapped with asyncHandler: a DB error thrown here (e.g. a dropped
+ * connection) must not become an unhandled rejection that crashes the
+ * whole process — it should surface as a 500 via Express's error handler.
  */
 
 // Attaches req.membership if the current user is a member of :businessId.
 // Responds 403 and stops the chain if not.
-export async function requireMembership(req: Request, res: Response, next: NextFunction) {
+export const requireMembership = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const businessId = req.params.businessId;
   const userId = req.user!.id;
 
@@ -23,11 +28,11 @@ export async function requireMembership(req: Request, res: Response, next: NextF
 
   req.membership = membership;
   next();
-}
+});
 
 // Stricter variant: requires the member's role to be 'owner'.
 // Assumes requireMembership already ran (or runs it first if not).
-export async function requireOwner(req: Request, res: Response, next: NextFunction) {
+export const requireOwner = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   const businessId = req.params.businessId;
   const userId = req.user!.id;
 
@@ -43,7 +48,7 @@ export async function requireOwner(req: Request, res: Response, next: NextFuncti
 
   req.membership = membership;
   next();
-}
+});
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace

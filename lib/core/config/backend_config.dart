@@ -5,4 +5,4 @@
 /// - Physical device on the same network as your dev machine:
 ///   use your machine's LAN IP (e.g. 192.168.x.x) instead of 10.0.2.2.
 /// - Deployed backend: replace with the real hosted URL.
-const String backendBaseUrl = 'http://10.0.2.2:4000';
+const String backendBaseUrl = 'http://10.48.68.2:4000';

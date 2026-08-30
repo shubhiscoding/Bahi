@@ -27,20 +27,34 @@ class AppRouter extends ConsumerWidget {
           return const SignInScreen();
         }
 
-        // Session exists → check business membership
-        final businessState = ref.watch(currentBusinessProvider);
+        // Session exists → sync the backend profile (POST /auth/sync)
+        // BEFORE anything that might create a business — the profile row
+        // must exist first, since businesses.owner_id has a foreign key
+        // to it. This was previously only triggered by the app shell's
+        // header, which is too late (business creation happens before
+        // ever reaching the app shell).
+        final profileState = ref.watch(currentUserProfileProvider);
 
-        return businessState.when(
+        return profileState.when(
           loading: () => _loadingScreen(),
           error: (err, stack) => _errorScreen(err),
-          data: (business) {
-            // No business membership → Create/Join screen
-            if (business == null) {
-              return const BusinessCreateOrJoinScreen();
-            }
+          data: (_) {
+            // Profile synced → check business membership
+            final businessState = ref.watch(currentBusinessProvider);
 
-            // Has business → main app shell (Inventory/Team tabs)
-            return const AppShellScreen();
+            return businessState.when(
+              loading: () => _loadingScreen(),
+              error: (err, stack) => _errorScreen(err),
+              data: (business) {
+                // No business membership → Create/Join screen
+                if (business == null) {
+                  return const BusinessCreateOrJoinScreen();
+                }
+
+                // Has business → main app shell (Inventory/Team tabs)
+                return const AppShellScreen();
+              },
+            );
           },
         );
       },
