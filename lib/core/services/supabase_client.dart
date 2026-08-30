@@ -17,8 +17,8 @@ class SupabaseClientService {
   static SupabaseClient get client => _instance.client;
 
   /// Get auth client
-  static dynamic get auth => client.auth;
+  static GoTrueClient get auth => client.auth;
 
   /// Get realtime client
-  static dynamic get realtime => client.realtime;
+  static RealtimeClient get realtime => client.realtime;
 }
