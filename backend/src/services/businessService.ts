@@ -1,35 +1,57 @@
 import { prisma } from '../prisma';
 import { generateInviteCode } from '../utils/inviteCode';
 
+const INVITE_CODE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 export const businessService = {
   async create(ownerId: string, name: string) {
-    // Retry a few times on the unlikely event of an invite code collision
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const inviteCode = generateInviteCode();
-      try {
-        return await prisma.business.create({
-          data: {
-            name,
-            ownerId,
-            inviteCode,
-            members: {
-              create: { userId: ownerId, role: 'owner' },
-            },
-          },
-        });
-      } catch (err: any) {
-        if (err.code === 'P2002') continue; // unique constraint on inviteCode — retry
-        throw err;
-      }
-    }
-    throw new Error('Failed to generate a unique invite code');
+    // No invite code generated here anymore — codes are ephemeral,
+    // generated on demand when the owner taps "Share" (generateInviteCode
+    // below), not a permanent business attribute.
+    return prisma.business.create({
+      data: {
+        name,
+        ownerId,
+        members: {
+          create: { userId: ownerId, role: 'owner' },
+        },
+      },
+    });
+  },
+
+  /**
+   * Generates a fresh OTP-style invite code: valid 5 minutes, single-use.
+   * Overwrites any previous code for this business (old one becomes
+   * unreachable immediately — there's only ever one "current" code).
+   */
+  async generateInviteCode(businessId: string) {
+    const code = generateInviteCode();
+    const expiresAt = new Date(Date.now() + INVITE_CODE_TTL_MS);
+
+    await prisma.business.update({
+      where: { id: businessId },
+      data: {
+        inviteCode: code,
+        inviteCodeExpiresAt: expiresAt,
+        inviteCodeUsedAt: null,
+      },
+    });
+
+    return { code, expiresAt };
   },
 
   async joinByCode(userId: string, inviteCode: string) {
-    const business = await prisma.business.findUnique({
-      where: { inviteCode: inviteCode.toUpperCase() },
+    const business = await prisma.business.findFirst({
+      where: {
+        inviteCode: inviteCode.toUpperCase(),
+        inviteCodeExpiresAt: { gt: new Date() },
+        inviteCodeUsedAt: null,
+      },
     });
 
+    // Deliberately one generic message for "not found" / "expired" /
+    // "already used" — design.md rule 11: one plain sentence, don't make
+    // the user parse different failure reasons.
     if (!business) {
       throw new Error('CODE_NOT_FOUND');
     }
@@ -38,12 +60,20 @@ export const businessService = {
       where: { businessId_userId: { businessId: business.id, userId } },
     });
     if (existing) {
-      return business; // already a member — idempotent
+      return business; // already a member — idempotent, don't consume the code
     }
 
-    await prisma.businessMember.create({
-      data: { businessId: business.id, userId, role: 'member' },
-    });
+    // Consume the code and add the member together — code becomes
+    // unusable the instant it succeeds once, per the single-use rule.
+    await prisma.$transaction([
+      prisma.businessMember.create({
+        data: { businessId: business.id, userId, role: 'member' },
+      }),
+      prisma.business.update({
+        where: { id: business.id },
+        data: { inviteCodeUsedAt: new Date() },
+      }),
+    ]);
 
     return business;
   },

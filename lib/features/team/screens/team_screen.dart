@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
@@ -9,7 +10,8 @@ import '../../business/providers/business_providers.dart';
 import '../providers/team_providers.dart';
 
 /// Team Screen (design.md §6)
-/// Member list, invite (re-shows invite code), owner-only remove.
+/// Member list, invite (generate-and-share a fresh OTP-style code),
+/// owner-only remove.
 class TeamScreen extends ConsumerWidget {
   const TeamScreen({super.key});
 
@@ -47,66 +49,19 @@ class TeamScreen extends ConsumerWidget {
         onPressed: () {
           final business = businessAsync.value;
           if (business == null) return;
-          _showInviteSheet(context, business.name, business.inviteCode);
+          showModalBottomSheet(
+            context: context,
+            backgroundColor: AppColors.surface,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            builder: (_) => _InviteCodeSheet(businessId: business.id, businessName: business.name),
+          );
         },
         icon: const Icon(Icons.person_add, size: 28),
         label: Text(
           Strings.addCoworker,
           style: Theme.of(context).textTheme.labelLarge,
-        ),
-      ),
-    );
-  }
-
-  void _showInviteSheet(BuildContext context, String businessName, String inviteCode) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'साथियों को जोड़ने के लिए कोड:',
-                style: Theme.of(sheetContext).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.primarySoft,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Text(
-                    inviteCode,
-                    style: Theme.of(sheetContext).textTheme.headlineSmall?.copyWith(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
-                        ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: () {
-                  InviteShare.shareInviteCode(
-                    businessName: businessName,
-                    inviteCode: inviteCode,
-                  );
-                },
-                icon: const Icon(Icons.share),
-                label: Text(Strings.shareViaWhatsApp),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -143,6 +98,134 @@ class TeamScreen extends ConsumerWidget {
             Text(
               Strings.errorOccurred,
               style: const TextStyle(fontSize: 18, color: AppColors.danger),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet: generate a fresh 5-minute, single-use invite code and
+/// share it — OTP-style (design.md rule 12), no permanent code shown.
+class _InviteCodeSheet extends ConsumerStatefulWidget {
+  final String businessId;
+  final String businessName;
+
+  const _InviteCodeSheet({required this.businessId, required this.businessName});
+
+  @override
+  ConsumerState<_InviteCodeSheet> createState() => _InviteCodeSheetState();
+}
+
+class _InviteCodeSheetState extends ConsumerState<_InviteCodeSheet> {
+  InviteCode? _activeCode;
+  Timer? _countdownTimer;
+  int _secondsLeft = 0;
+  bool _isSharing = false;
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _handleGenerateAndShare() async {
+    setState(() => _isSharing = true);
+    try {
+      final invite = await ref.read(
+        generateInviteCodeProvider(widget.businessId).future,
+      );
+      setState(() => _activeCode = invite);
+      _startCountdown(invite.expiresAt);
+
+      await InviteShare.shareInviteCode(
+        businessName: widget.businessName,
+        inviteCode: invite.code,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSharing = false);
+    }
+  }
+
+  void _startCountdown(DateTime expiresAt) {
+    _countdownTimer?.cancel();
+    void tick() {
+      final remaining = expiresAt.difference(DateTime.now()).inSeconds;
+      setState(() => _secondsLeft = remaining > 0 ? remaining : 0);
+      if (remaining <= 0) _countdownTimer?.cancel();
+    }
+
+    tick();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) => tick());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'साथियों को जोड़ने के लिए कोड',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 16),
+
+            if (_activeCode != null) ...[
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySoft,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: [
+                    Center(
+                      child: Text(
+                        _activeCode!.code,
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _secondsLeft > 0 ? '$_secondsLeft सेकंड में खत्म होगा' : 'कोड खत्म हो गया',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: _secondsLeft > 0 ? AppColors.inkSoft : AppColors.danger,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            ElevatedButton.icon(
+              onPressed: _isSharing ? null : _handleGenerateAndShare,
+              icon: const Icon(Icons.share),
+              label: Text(_activeCode == null ? 'कोड बनाएं और साझा करें' : 'नया कोड बनाएं'),
+            ),
+
+            const SizedBox(height: 12),
+            Text(
+              'कोड 5 मिनट या एक बार उपयोग होने पर खत्म हो जाता है।',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.inkSoft,
+                  ),
             ),
           ],
         ),

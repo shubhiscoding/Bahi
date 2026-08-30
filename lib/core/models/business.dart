@@ -2,24 +2,23 @@ class Business {
   final String id;
   final String name;
   final String ownerId;
-  final String inviteCode;
   final DateTime createdAt;
 
   Business({
     required this.id,
     required this.name,
     required this.ownerId,
-    required this.inviteCode,
     required this.createdAt,
   });
 
   // Backend (Node/Express + Prisma) returns camelCase JSON.
+  // Note: invite codes are ephemeral (5-min, single-use — see
+  // InviteCode below) and NOT part of this model anymore.
   factory Business.fromJson(Map<String, dynamic> json) {
     return Business(
       id: json['id'] ?? '',
       name: json['name'] ?? '',
       ownerId: json['ownerId'] ?? '',
-      inviteCode: json['inviteCode'] ?? '',
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
@@ -30,9 +29,25 @@ class Business {
         'id': id,
         'name': name,
         'ownerId': ownerId,
-        'inviteCode': inviteCode,
         'createdAt': createdAt.toIso8601String(),
       };
+}
+
+/// An ephemeral, OTP-style invite code: valid 5 minutes, single-use.
+/// Generated on demand (POST /businesses/:id/invite-code) right when the
+/// owner taps "Share" — never stored/displayed as a permanent value.
+class InviteCode {
+  final String code;
+  final DateTime expiresAt;
+
+  InviteCode({required this.code, required this.expiresAt});
+
+  factory InviteCode.fromJson(Map<String, dynamic> json) {
+    return InviteCode(
+      code: json['code'] ?? '',
+      expiresAt: DateTime.parse(json['expiresAt']),
+    );
+  }
 }
 
 class BusinessMember {
