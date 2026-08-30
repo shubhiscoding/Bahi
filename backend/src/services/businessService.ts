@@ -1,5 +1,6 @@
 import { prisma } from '../prisma';
 import { generateInviteCode } from '../utils/inviteCode';
+import { unitService } from './unitService';
 
 const INVITE_CODE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -8,7 +9,7 @@ export const businessService = {
     // No invite code generated here anymore — codes are ephemeral,
     // generated on demand when the owner taps "Share" (generateInviteCode
     // below), not a permanent business attribute.
-    return prisma.business.create({
+    const business = await prisma.business.create({
       data: {
         name,
         ownerId,
@@ -17,6 +18,10 @@ export const businessService = {
         },
       },
     });
+
+    await unitService.ensureDefaultUnitsLinked(business.id);
+
+    return business;
   },
 
   /**

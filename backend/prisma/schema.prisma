@@ -40,8 +40,37 @@ model Business {
   members     BusinessMember[]
   items       InventoryItem[]
   inviteCodes InviteCode[]
+  units       BusinessUnit[]
 
   @@map("businesses")
+}
+
+/// Global catalog of unit names (डिब्बा, किलो, etc.) — deduplicated across
+/// businesses via the unique name, so two businesses independently adding
+/// "बोरा" share the same row rather than creating duplicates.
+model Unit {
+  id   String @id @default(uuid()) @db.Uuid
+  name String @unique
+
+  businesses BusinessUnit[]
+
+  @@map("units")
+}
+
+/// Which units a given business has adopted — this is what the unit
+/// picker actually shows per business (strictly this business's own
+/// linked units, not a cross-business suggestion list — confirmed
+/// requirement). Every new business gets 3 seed units linked at creation.
+model BusinessUnit {
+  businessId String   @map("business_id") @db.Uuid
+  unitId     String   @map("unit_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  unit     Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@id([businessId, unitId])
+  @@map("business_units")
 }
 
 /// Ephemeral, OTP-style invite codes — one row per generated code, not a

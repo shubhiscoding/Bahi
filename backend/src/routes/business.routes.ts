@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { requireMembership, requireOwner } from '../middleware/businessAccess';
 import { businessService } from '../services/businessService';
+import { unitService } from '../services/unitService';
 import { emitToBusiness } from '../sockets';
 import { asyncHandler } from '../utils/asyncHandler';
 
@@ -94,5 +95,46 @@ businessRoutes.delete(
     await businessService.removeMember(businessId, userId);
     emitToBusiness(businessId, 'member:removed', { userId });
     res.status(204).send();
+  }),
+);
+
+// Self-removal: a non-owner member leaves the business. Owner cannot
+// leave (must delete the business instead — no ownership-transfer
+// feature) — checked here even though requireMembership already ran,
+// since requireMembership doesn't check role, just membership.
+businessRoutes.delete(
+  '/:businessId/leave',
+  requireMembership,
+  asyncHandler(async (req, res) => {
+    const { businessId } = req.params;
+    if (req.membership!.role === 'owner') {
+      return res.status(403).json({ error: 'OWNER_CANNOT_LEAVE' });
+    }
+    await businessService.removeMember(businessId, req.user!.id);
+    emitToBusiness(businessId, 'member:removed', { userId: req.user!.id });
+    res.status(204).send();
+  }),
+);
+
+businessRoutes.get(
+  '/:businessId/units',
+  requireMembership,
+  asyncHandler(async (req, res) => {
+    const units = await unitService.listForBusiness(req.params.businessId);
+    res.json(units);
+  }),
+);
+
+// Any member can add a unit — low-stakes convenience list, not a
+// sensitive action, so not owner-only.
+businessRoutes.post(
+  '/:businessId/units',
+  requireMembership,
+  asyncHandler(async (req, res) => {
+    const { name } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'name is required' });
+
+    const unit = await unitService.addUnit(req.params.businessId, name.trim());
+    res.status(201).json(unit);
   }),
 );

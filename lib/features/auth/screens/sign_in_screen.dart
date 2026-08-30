@@ -7,13 +7,38 @@ import '../providers/auth_provider.dart';
 /// Sign-In Screen
 /// Design.md rule 3: Minimal choices, single button, one-time assisted setup.
 /// One action: Google Sign-In. No secondary options, no complexity.
-class SignInScreen extends ConsumerWidget {
+///
+/// Uses local state (not ref.watch on the sign-in provider) so the OAuth
+/// flow only ever starts from the button tap — watching a side-effecting
+/// provider in build() previously auto-triggered Google sign-in the
+/// instant this screen rendered, before the user tapped anything.
+class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final googleSignInAsync = ref.watch(googleSignInProvider);
+  ConsumerState<SignInScreen> createState() => _SignInScreenState();
+}
 
+class _SignInScreenState extends ConsumerState<SignInScreen> {
+  bool _isLoading = false;
+  bool _hasError = false;
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+    });
+    try {
+      await ref.read(googleSignInProvider.future);
+    } catch (e) {
+      if (mounted) setState(() => _hasError = true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -49,7 +74,7 @@ class SignInScreen extends ConsumerWidget {
               // Primary action: Google Sign-In button (design.md rule 3: single button, no choices)
               // Rule 7: min 56px touch target, use labelLarge for text
               ElevatedButton.icon(
-                onPressed: googleSignInAsync.isLoading ? null : () => _handleGoogleSignIn(ref),
+                onPressed: _isLoading ? null : _handleGoogleSignIn,
                 icon: const Icon(Icons.login, size: 24),
                 label: Text(
                   Strings.signInGoogle,
@@ -58,7 +83,7 @@ class SignInScreen extends ConsumerWidget {
               ),
 
               // Loading state
-              if (googleSignInAsync.isLoading) ...[
+              if (_isLoading) ...[
                 const SizedBox(height: 24),
                 Center(
                   child: CircularProgressIndicator(
@@ -74,7 +99,7 @@ class SignInScreen extends ConsumerWidget {
               ],
 
               // Error state
-              if (googleSignInAsync.hasError) ...[
+              if (_hasError) ...[
                 const SizedBox(height: 24),
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -107,9 +132,5 @@ class SignInScreen extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  void _handleGoogleSignIn(WidgetRef ref) {
-    ref.read(googleSignInProvider);
   }
 }

@@ -4,6 +4,7 @@ import '../../../core/constants/strings.dart';
 import '../../../core/models/inventory_item.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/name_formatter.dart';
+import '../../../core/utils/relative_time.dart';
 import '../../team/providers/team_providers.dart';
 import '../providers/inventory_providers.dart';
 import 'add_edit_item_screen.dart';
@@ -154,7 +155,7 @@ class _ItemCard extends ConsumerWidget {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          '${Strings.editedBy} ${NameFormatter.editedByFormat(editorName)}',
+                          '${Strings.editedBy} ${NameFormatter.editedByFormat(editorName)} • ${formatRelativeHindi(item.updatedAt)}',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
