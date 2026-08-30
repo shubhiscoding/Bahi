@@ -55,8 +55,8 @@ dependencies:
   # App info (temporarily removed; Kotlin compatibility issue; will integrate later)
   # package_info_plus: ^7.0.0
 
-  # Share intent (temporarily removed; Kotlin compatibility issue; will integrate later)
-  # share_plus: ^9.0.0
+  # Share intent
+  share_plus: ^10.1.4
 
 dev_dependencies:
   flutter_test:

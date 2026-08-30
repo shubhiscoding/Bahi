@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
 import '../../../core/models/business.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/utils/invite_share.dart';
 import '../../../core/utils/name_formatter.dart';
 import '../../business/providers/business_providers.dart';
 import '../providers/team_providers.dart';
@@ -46,7 +47,7 @@ class TeamScreen extends ConsumerWidget {
         onPressed: () {
           final business = businessAsync.value;
           if (business == null) return;
-          _showInviteSheet(context, business.inviteCode);
+          _showInviteSheet(context, business.name, business.inviteCode);
         },
         icon: const Icon(Icons.person_add, size: 28),
         label: Text(
@@ -57,7 +58,7 @@ class TeamScreen extends ConsumerWidget {
     );
   }
 
-  void _showInviteSheet(BuildContext context, String inviteCode) {
+  void _showInviteSheet(BuildContext context, String businessName, String inviteCode) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
@@ -96,9 +97,9 @@ class TeamScreen extends ConsumerWidget {
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: () {
-                  // TODO: Wire share_plus (plan §O)
-                  ScaffoldMessenger.of(sheetContext).showSnackBar(
-                    const SnackBar(content: Text('WhatsApp साझा करना जल्द आएगा')),
+                  InviteShare.shareInviteCode(
+                    businessName: businessName,
+                    inviteCode: inviteCode,
                   );
                 },
                 icon: const Icon(Icons.share),

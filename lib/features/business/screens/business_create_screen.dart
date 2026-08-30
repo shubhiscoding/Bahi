@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/utils/invite_share.dart';
 import '../providers/business_providers.dart';
 
 /// Business Create Screen (design.md rule 3: one-time setup, minimal decisions)
@@ -182,9 +183,9 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
               // Primary action: Share via WhatsApp (design.md rule 6)
               ElevatedButton.icon(
                 onPressed: () {
-                  // TODO: Wire share_plus to open WhatsApp with pre-filled message
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('WhatsApp साझा करना जल्द आएगा')),
+                  InviteShare.shareInviteCode(
+                    businessName: _nameController.text.trim(),
+                    inviteCode: _createdInviteCode!,
                   );
                 },
                 icon: Icon(Icons.share),
