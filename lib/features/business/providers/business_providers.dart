@@ -6,8 +6,12 @@ import '../repositories/business_repository.dart';
 /// Create a new business
 final createBusinessProvider =
     FutureProvider.autoDispose.family<Business, String>((ref, businessName) async {
-  final authState = await ref.watch(authSessionProvider.future);
-  if (authState.user == null) throw Exception('Not authenticated');
+  final authStateAsync = ref.watch(authSessionProvider);
+
+  final authState = await authStateAsync.whenData((state) => state);
+  if (authState == null || authState.user == null) {
+    throw Exception('Not authenticated');
+  }
 
   return BusinessRepository.createBusiness(
     ownerId: authState.user!.id,
@@ -18,8 +22,12 @@ final createBusinessProvider =
 /// Join a business by invite code
 final joinBusinessProvider =
     FutureProvider.autoDispose.family<void, String>((ref, inviteCode) async {
-  final authState = await ref.watch(authSessionProvider.future);
-  if (authState.user == null) throw Exception('Not authenticated');
+  final authStateAsync = ref.watch(authSessionProvider);
+
+  final authState = await authStateAsync.whenData((state) => state);
+  if (authState == null || authState.user == null) {
+    throw Exception('Not authenticated');
+  }
 
   await BusinessRepository.joinBusinessByCode(
     userId: authState.user!.id,
@@ -29,14 +37,21 @@ final joinBusinessProvider =
 
 /// Get all businesses for current user
 final userBusinessesProvider = FutureProvider<List<Business>>((ref) async {
-  final authState = await ref.watch(authSessionProvider.future);
-  if (authState.user == null) return [];
+  final authStateAsync = ref.watch(authSessionProvider);
+
+  final authState = await authStateAsync.whenData((state) => state);
+  if (authState == null || authState.user == null) return [];
 
   return BusinessRepository.getUserBusinesses(authState.user!.id);
 });
 
 /// Current selected business (first one for now; can be expanded to user selection)
 final currentBusinessProvider = FutureProvider<Business?>((ref) async {
-  final businesses = await ref.watch(userBusinessesProvider.future);
-  return businesses.isNotEmpty ? businesses[0] : null;
+  try {
+    final businesses = await ref.watch(userBusinessesProvider.future);
+    return businesses.isNotEmpty ? businesses[0] : null;
+  } catch (e) {
+    print('Error getting current business: $e');
+    return null;
+  }
 });
