@@ -60,6 +60,9 @@ dependencies:
 
   # Devanagari<->Latin romanization for Hinglish/cross-script search matching
   inditrans: ^0.12.1
+  # Phonetic (Double Metaphone) matching — handles English spelling quirks
+  # (e.g. "fortune" sounds like "forchun") that plain edit-distance misses
+  dart_phonetics: ^1.0.0
 
 dev_dependencies:
   flutter_test:
