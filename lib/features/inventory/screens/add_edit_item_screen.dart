@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
 import '../../../core/models/inventory_item.dart';
+import '../../../core/providers/connectivity_provider.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/utils/offline_guard.dart';
 import '../providers/inventory_providers.dart';
 import '../../team/providers/team_providers.dart';
 
@@ -60,6 +62,8 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
   }
 
   Future<void> _handleSave() async {
+    if (!await ensureOnline(context)) return;
+
     final name = _nameController.text.trim();
     final priceText = _priceController.text.trim();
     final quantityText = _quantityController.text.trim();
@@ -106,6 +110,8 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
   }
 
   Future<void> _handleDelete() async {
+    if (!await ensureOnline(context)) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -145,6 +151,8 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
   Widget build(BuildContext context) {
     final roleAsync = ref.watch(currentUserRoleProvider);
     final isOwner = roleAsync.value == 'owner';
+    // design.md rule 5: disabled (greyed out), never hidden, when offline
+    final isOnline = ref.watch(isOnlineProvider).value ?? true;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -155,8 +163,11 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
           // Owner-only delete (design.md: secondary/rare action, smaller, per rule 6)
           if (isEditing && isOwner)
             IconButton(
-              onPressed: _handleDelete,
-              icon: const Icon(Icons.delete_outline, color: AppColors.danger),
+              onPressed: isOnline ? _handleDelete : null,
+              icon: Icon(
+                Icons.delete_outline,
+                color: isOnline ? AppColors.danger : AppColors.inkSoft,
+              ),
             ),
         ],
       ),
@@ -217,7 +228,7 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
 
               // Primary action: Save (design.md rule 6)
               ElevatedButton(
-                onPressed: _isSaving ? null : _handleSave,
+                onPressed: (_isSaving || !isOnline) ? null : _handleSave,
                 child: _isSaving
                     ? const SizedBox(
                         height: 20,
@@ -229,6 +240,23 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
                         style: Theme.of(context).textTheme.labelLarge,
                       ),
               ),
+
+              if (!isOnline) ...[
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.wifi_off, size: 18, color: AppColors.danger),
+                    const SizedBox(width: 8),
+                    Text(
+                      Strings.connectToInternet,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.danger,
+                          ),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),

@@ -80,4 +80,12 @@ class BusinessMember {
           : DateTime.now(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'businessId': businessId,
+        'userId': userId,
+        'role': role,
+        'fullName': fullName,
+        'joinedAt': joinedAt.toIso8601String(),
+      };
 }

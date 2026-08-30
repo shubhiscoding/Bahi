@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
 import '../../../core/models/business.dart';
+import '../../../core/providers/connectivity_provider.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/invite_share.dart';
+import '../../../core/utils/offline_guard.dart';
 import '../providers/business_providers.dart';
 
 /// Business Create Screen (design.md rule 3: one-time setup, minimal decisions)
@@ -40,6 +42,8 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
   }
 
   void _handleCreateBusiness() async {
+    if (!await ensureOnline(context)) return;
+
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -62,6 +66,8 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
   }
 
   Future<void> _handleGenerateAndShare() async {
+    if (!await ensureOnline(context)) return;
+
     setState(() => _isSharing = true);
     try {
       final invite = await ref.read(
@@ -97,8 +103,10 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isOnline = ref.watch(isOnlineProvider).value ?? true;
+
     if (_createdBusiness != null) {
-      return _buildInviteScreen(context);
+      return _buildInviteScreen(context, isOnline);
     }
 
     // Show create form
@@ -136,12 +144,29 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
 
               // Primary action button (design.md rule 6: one obvious action)
               ElevatedButton(
-                onPressed: _handleCreateBusiness,
+                onPressed: isOnline ? _handleCreateBusiness : null,
                 child: Text(
                   Strings.createButtonLabel,
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
               ),
+
+              if (!isOnline) ...[
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.wifi_off, size: 18, color: AppColors.danger),
+                    const SizedBox(width: 8),
+                    Text(
+                      Strings.connectToInternet,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.danger,
+                          ),
+                    ),
+                  ],
+                ),
+              ],
 
               const SizedBox(height: 48),
 
@@ -162,7 +187,7 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
 
   /// After business creation: generate-and-share flow instead of showing
   /// a static permanent code (rule 12: OTP-style, one code per share tap).
-  Widget _buildInviteScreen(BuildContext context) {
+  Widget _buildInviteScreen(BuildContext context, bool isOnline) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -234,13 +259,30 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
 
               // Primary action: Generate & Share via WhatsApp (rule 6)
               ElevatedButton.icon(
-                onPressed: _isSharing ? null : _handleGenerateAndShare,
+                onPressed: (_isSharing || !isOnline) ? null : _handleGenerateAndShare,
                 icon: Icon(Icons.share),
                 label: Text(
                   _activeCode == null ? 'कोड बनाएं और साझा करें' : 'नया कोड बनाएं',
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
               ),
+
+              if (!isOnline) ...[
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.wifi_off, size: 18, color: AppColors.danger),
+                    const SizedBox(width: 8),
+                    Text(
+                      Strings.connectToInternet,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.danger,
+                          ),
+                    ),
+                  ],
+                ),
+              ],
 
               const SizedBox(height: 16),
 

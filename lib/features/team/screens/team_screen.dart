@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
 import '../../../core/models/business.dart';
+import '../../../core/providers/connectivity_provider.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/invite_share.dart';
 import '../../../core/utils/name_formatter.dart';
+import '../../../core/utils/offline_guard.dart';
 import '../../business/providers/business_providers.dart';
 import '../providers/team_providers.dart';
 
@@ -131,6 +133,8 @@ class _InviteCodeSheetState extends ConsumerState<_InviteCodeSheet> {
   }
 
   Future<void> _handleGenerateAndShare() async {
+    if (!await ensureOnline(context)) return;
+
     setState(() => _isSharing = true);
     try {
       final invite = await ref.read(
@@ -168,6 +172,8 @@ class _InviteCodeSheetState extends ConsumerState<_InviteCodeSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isOnline = ref.watch(isOnlineProvider).value ?? true;
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -214,19 +220,34 @@ class _InviteCodeSheetState extends ConsumerState<_InviteCodeSheet> {
             ],
 
             ElevatedButton.icon(
-              onPressed: _isSharing ? null : _handleGenerateAndShare,
+              onPressed: (_isSharing || !isOnline) ? null : _handleGenerateAndShare,
               icon: const Icon(Icons.share),
               label: Text(_activeCode == null ? 'कोड बनाएं और साझा करें' : 'नया कोड बनाएं'),
             ),
 
             const SizedBox(height: 12),
-            Text(
-              'कोड 5 मिनट या एक बार उपयोग होने पर खत्म हो जाता है।',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.inkSoft,
+            if (!isOnline)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.wifi_off, size: 18, color: AppColors.danger),
+                  const SizedBox(width: 8),
+                  Text(
+                    Strings.connectToInternet,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.danger,
+                        ),
                   ),
-            ),
+                ],
+              )
+            else
+              Text(
+                'कोड 5 मिनट या एक बार उपयोग होने पर खत्म हो जाता है।',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.inkSoft,
+                    ),
+              ),
           ],
         ),
       ),
@@ -246,6 +267,8 @@ class _MemberCard extends ConsumerWidget {
   });
 
   Future<void> _handleRemove(BuildContext context, WidgetRef ref) async {
+    if (!await ensureOnline(context)) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -285,6 +308,7 @@ class _MemberCard extends ConsumerWidget {
     final avatarColor = AppColors.avatarColorForName(member.fullName);
     final shortName = NameFormatter.shortName(member.fullName);
     final initial = NameFormatter.getInitial(member.fullName);
+    final isOnline = ref.watch(isOnlineProvider).value ?? true;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -325,8 +349,11 @@ class _MemberCard extends ConsumerWidget {
             // Owner-only remove action (design.md rule 6: secondary/rare, smaller)
             if (isCurrentUserOwner && !member.isOwner)
               IconButton(
-                onPressed: () => _handleRemove(context, ref),
-                icon: const Icon(Icons.person_remove_outlined, color: AppColors.danger),
+                onPressed: isOnline ? () => _handleRemove(context, ref) : null,
+                icon: Icon(
+                  Icons.person_remove_outlined,
+                  color: isOnline ? AppColors.danger : AppColors.inkSoft,
+                ),
               ),
           ],
         ),
