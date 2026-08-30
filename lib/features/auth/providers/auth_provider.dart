@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'
+    hide User; // Hide User from supabase to avoid conflict with our User model
+import 'package:gotrue/src/types/provider.dart' as gotrue_provider;
 import '../../../core/models/user.dart';
 import '../../../core/services/supabase_client.dart';
 
@@ -53,9 +55,10 @@ final userBusinessesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) 
 /// Sign in with Google
 final googleSignInProvider = FutureProvider.autoDispose<void>((ref) async {
   try {
+    // Use the built-in Google OAuth provider from Supabase
     await SupabaseClientService.auth.signInWithOAuth(
-      OAuthProvider.google,
-      redirectTo: 'io.supabase.flutter://callback/',
+      gotrue_provider.Provider.google,
+      redirectTo: 'com.example.bahi://callback/',
     );
   } catch (e) {
     print('Google sign-in error: $e');
@@ -76,7 +79,7 @@ final signOutProvider = FutureProvider.autoDispose<void>((ref) async {
 /// Auth state model
 class AuthState {
   final Session? session;
-  final GotrueUser? user;
+  final AuthUser? user;
 
   AuthState({
     required this.session,
