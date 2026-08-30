@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Required by flutter_downloader's DownloadedFileProvider (see
+     AndroidManifest.xml) — declares which directories the FileProvider
+     is allowed to serve, matching the external-storage app directory
+     used in update_service.dart (getExternalStorageDirectory()). -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-path name="external_files" path="."/>
+</paths>

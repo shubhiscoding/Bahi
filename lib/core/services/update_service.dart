@@ -69,23 +69,44 @@ class UpdateService {
   /// installer when tapped once complete (openFileFromNotification: true)
   /// — satisfies "download silently, notify when ready to install"
   /// without needing a custom in-app progress UI.
+  ///
+  /// Throws on failure (directory couldn't be resolved/created, enqueue
+  /// returned no task ID) — the caller must surface this to the user;
+  /// silently swallowing it is exactly what made downloads appear to do
+  /// nothing when this failed previously.
   static Future<void> downloadUpdate(String url) async {
     // Android 8+ "install unknown apps" permission — if not granted, the
     // system installer will prompt for it when the user taps to install,
     // so we don't block the download on this.
     await Permission.requestInstallPackages.request();
+    // Android 13+ requires this for showNotification to actually post one.
+    await Permission.notification.request();
 
     final dir = await getExternalStorageDirectory();
-    if (dir == null) return;
+    if (dir == null) {
+      throw Exception('डाउनलोड फ़ोल्डर नहीं मिला');
+    }
+
+    // flutter_downloader's own docs: "the directory must be created in
+    // advance" — enqueue() fails silently (no exception, no task) if it
+    // doesn't already exist, which was the actual root cause of nothing
+    // happening on tap.
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
 
     final fileName = url.split('/').last;
 
-    await FlutterDownloader.enqueue(
+    final taskId = await FlutterDownloader.enqueue(
       url: url,
       savedDir: dir.path,
       fileName: fileName,
       showNotification: true,
       openFileFromNotification: true,
     );
+
+    if (taskId == null) {
+      throw Exception('डाउनलोड शुरू नहीं हो सका');
+    }
   }
 }

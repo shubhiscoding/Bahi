@@ -54,12 +54,22 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
             child: const Text('बाद में'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(dialogContext).pop();
-              UpdateService.downloadUpdate(update.downloadUrl);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(Strings.downloadingUpdate)),
-              );
+              try {
+                await UpdateService.downloadUpdate(update.downloadUrl);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(Strings.downloadingUpdate)),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+                  );
+                }
+              }
             },
             child: const Text('अपडेट करें'),
           ),
