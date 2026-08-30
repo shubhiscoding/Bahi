@@ -19,9 +19,9 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Auth & backend (temporarily minimal for MVP structure; add back supabase_flutter + google_sign_in after gradle config)
-  # supabase_flutter: ^1.10.0
-  # google_sign_in: ^6.1.6
+  # Auth & backend
+  supabase_flutter: ^1.10.0
+  google_sign_in: ^6.1.6
 
   # State management
   flutter_riverpod: ^2.4.10
@@ -32,26 +32,26 @@ dependencies:
   path: ^1.8.3
   path_provider: ^2.1.0
 
-  # Voice input/output (temporarily removed due to gradle build issues, will add back after core MVP)
-  # speech_to_text: ^6.1.1
-  # flutter_tts: ^4.2.5
+  # Voice input/output
+  speech_to_text: ^6.1.1
+  flutter_tts: ^4.2.5
 
-  # Connectivity detection (temporarily removed for MVP)
-  # connectivity_plus: ^5.0.2
+  # Connectivity detection
+  connectivity_plus: ^5.0.2
 
   # UI & icons
   cupertino_icons: ^1.0.6
   google_fonts: ^6.0.0
 
-  # In-app updates (temporarily removed for MVP)
-  # flutter_downloader: ^1.10.9
-  # permission_handler: ^11.0.0
+  # In-app updates
+  flutter_downloader: ^1.10.9
+  permission_handler: ^11.0.0
 
-  # App info (temporarily removed for MVP)
-  # package_info_plus: ^7.0.0
+  # App info
+  package_info_plus: ^7.0.0
 
-  # Share intent (temporarily removed for MVP)
-  # share_plus: ^9.0.0
+  # Share intent
+  share_plus: ^9.0.0
 
 dev_dependencies:
   flutter_test:
