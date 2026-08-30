@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
+import '../../../core/providers/connectivity_provider.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/utils/offline_guard.dart';
 import '../providers/business_providers.dart';
 
 /// Business Join Screen (design.md §4)
@@ -31,6 +33,8 @@ class _BusinessJoinScreenState extends ConsumerState<BusinessJoinScreen> {
   }
 
   Future<void> _handleJoinBusiness() async {
+    if (!await ensureOnline(context)) return;
+
     final code = _codeController.text.trim().toUpperCase();
     if (code.isEmpty) {
       setState(() => _errorMessage = 'कोड डालें');
@@ -60,6 +64,8 @@ class _BusinessJoinScreenState extends ConsumerState<BusinessJoinScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isOnline = ref.watch(isOnlineProvider).value ?? true;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -125,7 +131,7 @@ class _BusinessJoinScreenState extends ConsumerState<BusinessJoinScreen> {
 
               // Primary action button (design.md rule 6)
               ElevatedButton(
-                onPressed: _isJoining ? null : _handleJoinBusiness,
+                onPressed: (_isJoining || !isOnline) ? null : _handleJoinBusiness,
                 child: _isJoining
                     ? SizedBox(
                         height: 20,
@@ -140,6 +146,23 @@ class _BusinessJoinScreenState extends ConsumerState<BusinessJoinScreen> {
                         style: Theme.of(context).textTheme.labelLarge,
                       ),
               ),
+
+              if (!isOnline) ...[
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.wifi_off, size: 18, color: AppColors.danger),
+                    const SizedBox(width: 8),
+                    Text(
+                      Strings.connectToInternet,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.danger,
+                          ),
+                    ),
+                  ],
+                ),
+              ],
 
               const SizedBox(height: 24),
 
