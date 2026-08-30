@@ -1,14 +1,9 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
-import jwt from 'jsonwebtoken';
-import { env } from '../env';
+import { verifySupabaseJwt } from '../jwtVerify';
 import { prisma } from '../prisma';
 
 let io: SocketIOServer;
-
-interface SupabaseJwtPayload {
-  sub: string;
-}
 
 /** Initializes the Socket.IO server, wired to the same HTTP server as Express. */
 export function initSockets(httpServer: HttpServer) {
@@ -20,13 +15,12 @@ export function initSockets(httpServer: HttpServer) {
     const token = socket.handshake.auth?.token as string | undefined;
     if (!token) return next(new Error('Missing auth token'));
 
-    try {
-      const payload = jwt.verify(token, env.supabaseJwtSecret) as SupabaseJwtPayload;
-      socket.data.userId = payload.sub;
-      next();
-    } catch {
-      next(new Error('Invalid or expired token'));
-    }
+    verifySupabaseJwt(token)
+      .then((payload) => {
+        socket.data.userId = payload.sub;
+        next();
+      })
+      .catch(() => next(new Error('Invalid or expired token')));
   });
 
   io.on('connection', (socket: Socket) => {

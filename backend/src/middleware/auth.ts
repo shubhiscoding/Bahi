@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { env } from '../env';
+import { verifySupabaseJwt } from '../jwtVerify';
 import { prisma } from '../prisma';
 
 export interface AuthenticatedUser {
@@ -19,21 +18,12 @@ declare global {
   }
 }
 
-interface SupabaseJwtPayload {
-  sub: string;
-  email?: string;
-  user_metadata?: {
-    full_name?: string;
-    name?: string;
-  };
-}
-
 /**
- * Verifies the Supabase-issued JWT (Bearer token) on every request.
+ * Verifies the Supabase-issued JWT (Bearer token) on every request via JWKS.
  * Replaces all RLS-based checks — this is the single source of truth for
  * "who is making this request" from here on.
  */
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Missing bearer token' });
@@ -42,7 +32,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = authHeader.slice('Bearer '.length);
 
   try {
-    const payload = jwt.verify(token, env.supabaseJwtSecret) as SupabaseJwtPayload;
+    const payload = await verifySupabaseJwt(token);
 
     req.user = {
       id: payload.sub,
