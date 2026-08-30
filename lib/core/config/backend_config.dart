@@ -1,8 +1,8 @@
 /// Base URL for the Node/Express backend.
 ///
-/// - Android emulator talking to a backend running on your own machine:
-///   use 10.0.2.2 (special alias to the host machine from inside the emulator).
-/// - Physical device on the same network as your dev machine:
-///   use your machine's LAN IP (e.g. 192.168.x.x) instead of 10.0.2.2.
-/// - Deployed backend: replace with the real hosted URL.
-const String backendBaseUrl = 'http://10.48.68.2:4000';
+/// Currently pointed at the Vercel deployment (REST only — Socket.IO
+/// live updates don't run there, see backend/api/index.ts; the app still
+/// works via REST fetch-on-load, just without real-time push updates
+/// until sockets are hosted somewhere that supports persistent
+/// connections, e.g. the EC2 plan discussed separately).
+const String backendBaseUrl = 'https://bahi-murex.vercel.app';
