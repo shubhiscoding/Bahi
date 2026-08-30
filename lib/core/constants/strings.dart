@@ -60,7 +60,10 @@ class Strings {
   // Errors
   static const errorOccurred = 'कुछ गलत हुआ';
   static const tryAgain = 'फिर से कोशिश करें';
-  static const codeNotFound = 'कोड नहीं मिला';
+  // Unified message for not-found/expired/already-used — the code is
+  // ephemeral (5 min, single-use), so all three collapse to one plain
+  // sentence (design.md rule 11) rather than distinguishing failure types.
+  static const codeNotFound = 'यह कोड काम नहीं कर रहा। नया कोड माँगें।';
 
   // Edit attribution (format: "पहला-नाम द.")
   static const editedBy = 'बदला:';

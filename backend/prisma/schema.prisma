@@ -29,11 +29,19 @@ model Profile {
 }
 
 model Business {
-  id         String   @id @default(uuid()) @db.Uuid
-  name       String
-  ownerId    String   @map("owner_id") @db.Uuid
-  inviteCode String   @unique @map("invite_code")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  ownerId   String   @map("owner_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Ephemeral invite code — OTP-style (matches the UPI/banking OTP mental
+  // model this audience already knows): generated on demand when the
+  // owner taps "Share", valid 5 minutes, single-use. Not a permanent
+  // business attribute, so no @unique constraint — validity (not global
+  // uniqueness) is what matters, checked in businessService.joinByCode.
+  inviteCode          String?   @map("invite_code")
+  inviteCodeExpiresAt DateTime? @map("invite_code_expires_at") @db.Timestamptz
+  inviteCodeUsedAt    DateTime? @map("invite_code_used_at") @db.Timestamptz
 
   owner   Profile          @relation("BusinessOwner", fields: [ownerId], references: [id])
   members BusinessMember[]

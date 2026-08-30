@@ -28,4 +28,11 @@ class BusinessRepository {
     final response = await ApiClient.instance.get('/businesses/mine');
     return (response.data as List).map((b) => Business.fromJson(b)).toList();
   }
+
+  /// Generates a fresh 5-minute, single-use invite code — call this right
+  /// when the user taps "Share", not ahead of time.
+  static Future<InviteCode> generateInviteCode(String businessId) async {
+    final response = await ApiClient.instance.post('/businesses/$businessId/invite-code');
+    return InviteCode.fromJson(response.data);
+  }
 }

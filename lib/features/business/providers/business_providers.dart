@@ -44,3 +44,11 @@ final currentBusinessProvider = FutureProvider<Business?>((ref) async {
     return null;
   }
 });
+
+/// Generates a fresh 5-minute, single-use invite code — call right when
+/// the user taps "Share" (design.md rule 12: OTP-style, matches the
+/// UPI/banking mental model this audience already knows).
+final generateInviteCodeProvider =
+    FutureProvider.autoDispose.family<InviteCode, String>((ref, businessId) {
+  return BusinessRepository.generateInviteCode(businessId);
+});

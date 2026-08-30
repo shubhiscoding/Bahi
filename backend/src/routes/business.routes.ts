@@ -65,6 +65,18 @@ businessRoutes.delete(
   }),
 );
 
+// Owner-only: generates a fresh 5-minute, single-use invite code —
+// called right when the owner taps "Share" in the app, not stored/shown
+// permanently anywhere.
+businessRoutes.post(
+  '/:businessId/invite-code',
+  requireOwner,
+  asyncHandler(async (req, res) => {
+    const result = await businessService.generateInviteCode(req.params.businessId);
+    res.json(result);
+  }),
+);
+
 businessRoutes.get(
   '/:businessId/members',
   requireMembership,

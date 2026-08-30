@@ -1,12 +1,16 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
+import '../../../core/models/business.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/invite_share.dart';
 import '../providers/business_providers.dart';
 
 /// Business Create Screen (design.md rule 3: one-time setup, minimal decisions)
-/// User enters business name → sees invite code → shares via WhatsApp
+/// User enters business name → business created → owner taps "Share" to
+/// generate a fresh 5-minute, single-use invite code (OTP-style, matches
+/// the UPI/banking mental model this audience already knows — rule 12).
 class BusinessCreateScreen extends ConsumerStatefulWidget {
   const BusinessCreateScreen({super.key});
 
@@ -16,7 +20,11 @@ class BusinessCreateScreen extends ConsumerStatefulWidget {
 
 class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
   late TextEditingController _nameController;
-  String? _createdInviteCode;
+  Business? _createdBusiness;
+  InviteCode? _activeCode;
+  Timer? _countdownTimer;
+  int _secondsLeft = 0;
+  bool _isSharing = false;
 
   @override
   void initState() {
@@ -27,6 +35,7 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _countdownTimer?.cancel();
     super.dispose();
   }
 
@@ -44,7 +53,7 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
       // Refresh business state so the router picks up the new membership
       ref.invalidate(currentBusinessProvider);
       ref.invalidate(userBusinessesProvider);
-      setState(() => _createdInviteCode = business.inviteCode);
+      setState(() => _createdBusiness = business);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('त्रुटि: ${e.toString()}')),
@@ -52,11 +61,44 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
     }
   }
 
+  Future<void> _handleGenerateAndShare() async {
+    setState(() => _isSharing = true);
+    try {
+      final invite = await ref.read(
+        generateInviteCodeProvider(_createdBusiness!.id).future,
+      );
+      setState(() => _activeCode = invite);
+      _startCountdown(invite.expiresAt);
+
+      await InviteShare.shareInviteCode(
+        businessName: _createdBusiness!.name,
+        inviteCode: invite.code,
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSharing = false);
+    }
+  }
+
+  void _startCountdown(DateTime expiresAt) {
+    _countdownTimer?.cancel();
+    void tick() {
+      final remaining = expiresAt.difference(DateTime.now()).inSeconds;
+      setState(() => _secondsLeft = remaining > 0 ? remaining : 0);
+      if (remaining <= 0) _countdownTimer?.cancel();
+    }
+
+    tick();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) => tick());
+  }
+
   @override
   Widget build(BuildContext context) {
-    // If invite code created, show confirmation screen
-    if (_createdInviteCode != null) {
-      return _buildInviteCodeConfirmation(context);
+    if (_createdBusiness != null) {
+      return _buildInviteScreen(context);
     }
 
     // Show create form
@@ -118,8 +160,9 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
     );
   }
 
-  /// Confirmation screen showing the invite code + WhatsApp share
-  Widget _buildInviteCodeConfirmation(BuildContext context) {
+  /// After business creation: generate-and-share flow instead of showing
+  /// a static permanent code (rule 12: OTP-style, one code per share tap).
+  Widget _buildInviteScreen(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -133,7 +176,6 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Success icon + message
               Center(
                 child: Icon(
                   Icons.check_circle,
@@ -150,47 +192,52 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
               ),
               const SizedBox(height: 32),
 
-              // Invite code (large, readable per design.md rule 7)
-              Container(
-                padding: EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: AppColors.primarySoft,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
+              // Show the active code + live countdown once generated
+              if (_activeCode != null) ...[
+                Container(
+                  padding: EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        'कोड भेजा गया:',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _activeCode!.code,
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontSize: 36,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _secondsLeft > 0
+                            ? '$_secondsLeft सेकंड में खत्म होगा'
+                            : 'कोड खत्म हो गया',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: _secondsLeft > 0 ? AppColors.inkSoft : AppColors.danger,
+                            ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      'साथियों को जोड़ने के लिए कोड:',
-                      style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _createdInviteCode!,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.primary,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
+                const SizedBox(height: 24),
+              ],
 
-              const SizedBox(height: 32),
-
-              // Primary action: Share via WhatsApp (design.md rule 6)
+              // Primary action: Generate & Share via WhatsApp (rule 6)
               ElevatedButton.icon(
-                onPressed: () {
-                  InviteShare.shareInviteCode(
-                    businessName: _nameController.text.trim(),
-                    inviteCode: _createdInviteCode!,
-                  );
-                },
+                onPressed: _isSharing ? null : _handleGenerateAndShare,
                 icon: Icon(Icons.share),
                 label: Text(
-                  Strings.shareViaWhatsApp,
+                  _activeCode == null ? 'कोड बनाएं और साझा करें' : 'नया कोड बनाएं',
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
               ),
@@ -210,7 +257,7 @@ class _BusinessCreateScreenState extends ConsumerState<BusinessCreateScreen> {
 
               // Info text (design.md copy rules)
               Text(
-                'इस कोड को WhatsApp पर साझा करें।',
+                'कोड 5 मिनट या एक बार उपयोग होने पर खत्म हो जाता है।',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppColors.inkSoft,
