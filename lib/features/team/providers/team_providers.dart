@@ -19,10 +19,13 @@ final teamMembersProvider = StreamProvider<List<BusinessMember>>((ref) {
   );
 });
 
-/// Current user's role in the current business ('owner' | 'member' | null)
+/// Current user's role in the current business ('owner' | 'member' | null).
+/// Uses ref.watch(authSessionProvider).valueOrNull (not .future) so this
+/// reliably re-runs on every auth transition — same fix as
+/// currentBusinessProvider/currentUserProfileProvider.
 final currentUserRoleProvider = FutureProvider<String?>((ref) async {
-  final authState = await ref.watch(authSessionProvider.future);
-  if (authState.user == null) return null;
+  final authState = ref.watch(authSessionProvider).valueOrNull;
+  if (authState == null || !authState.isAuthenticated) return null;
 
   final business = await ref.watch(currentBusinessProvider.future);
   if (business == null) return null;
@@ -40,4 +43,19 @@ final removeMemberProvider =
   if (business == null) throw Exception('No business selected');
 
   await TeamRepository.removeMember(businessId: business.id, userId: userId);
+});
+
+/// Leave the current business (self-removal). Owner cannot leave —
+/// enforced server-side (403 OWNER_CANNOT_LEAVE).
+final leaveBusinessProvider = FutureProvider.autoDispose<void>((ref) async {
+  final business = await ref.watch(currentBusinessProvider.future);
+  if (business == null) throw Exception('No business selected');
+
+  await TeamRepository.leaveBusiness(business.id);
+
+  // Same invalidation pattern as sign-out: without this, the now-stale
+  // business/inventory/team providers would keep showing data for a
+  // business this user is no longer a member of.
+  ref.invalidate(userBusinessesProvider);
+  ref.invalidate(currentBusinessProvider);
 });

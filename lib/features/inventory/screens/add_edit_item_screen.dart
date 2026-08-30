@@ -7,18 +7,8 @@ import '../../../core/theme/colors.dart';
 import '../../../core/utils/offline_guard.dart';
 import '../../../core/widgets/voice_confirm_sheet.dart';
 import '../providers/inventory_providers.dart';
+import '../widgets/unit_picker.dart';
 import '../../team/providers/team_providers.dart';
-
-const _units = [
-  Strings.unitPiece,
-  Strings.unitKg,
-  Strings.unitLitre,
-  Strings.unitDozen,
-  Strings.unitMetre,
-  Strings.unitBox,
-  Strings.unitBottle,
-  Strings.unitBag,
-];
 
 /// Add/Edit Item Screen (design.md §5)
 /// Voice-first fields (rule 1: mic → listen → confirm both visually and
@@ -51,7 +41,7 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
     _quantityController = TextEditingController(
       text: widget.item?.quantity.toString() ?? '',
     );
-    _selectedUnit = widget.item?.unit ?? _units[0];
+    _selectedUnit = widget.item?.unit ?? '';
   }
 
   @override
@@ -69,7 +59,7 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
     final priceText = _priceController.text.trim();
     final quantityText = _quantityController.text.trim();
 
-    if (name.isEmpty || priceText.isEmpty || quantityText.isEmpty) {
+    if (name.isEmpty || priceText.isEmpty || quantityText.isEmpty || _selectedUnit.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('सारी जानकारी भरें')),
       );
@@ -205,26 +195,11 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Unit selector (chip-based, per design.md rule 9: tap over typing)
-              Text(Strings.itemUnit, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _units.map((unit) {
-                  final isSelected = _selectedUnit == unit;
-                  return ChoiceChip(
-                    label: Text(unit),
-                    selected: isSelected,
-                    onSelected: (_) => setState(() => _selectedUnit = unit),
-                    selectedColor: AppColors.primary,
-                    labelStyle: TextStyle(
-                      color: isSelected ? Colors.white : AppColors.inkPrimary,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  );
-                }).toList(),
+              // Unit selector — searchable per-business list + add-new
+              // affordance (design.md rule 9: tap over typing)
+              UnitPicker(
+                selectedUnit: _selectedUnit,
+                onSelected: (unit) => setState(() => _selectedUnit = unit),
               ),
 
               const SizedBox(height: 32),

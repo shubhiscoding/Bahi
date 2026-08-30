@@ -99,4 +99,10 @@ class TeamRepository {
   }) async {
     await ApiClient.instance.delete('/businesses/$businessId/members/$userId');
   }
+
+  /// Leave a business (self-removal). Owner cannot leave — enforced by
+  /// the backend (403 OWNER_CANNOT_LEAVE), not just hidden in the UI.
+  static Future<void> leaveBusiness(String businessId) async {
+    await ApiClient.instance.delete('/businesses/$businessId/leave');
+  }
 }
