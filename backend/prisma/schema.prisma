@@ -1,0 +1,73 @@
+// Prisma schema — mirrors the existing Supabase Postgres tables exactly
+// (created by supabase/migrations/init_schema.sql in the Flutter project).
+// This connects DIRECTLY to Postgres, bypassing PostgREST/RLS entirely —
+// authorization is enforced in Express middleware instead (see src/middleware).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// profiles.id has a DB-level FK to auth.users(id) (see init_schema.sql),
+// which Supabase Auth owns and populates via its own trigger. The backend
+// never queries auth.users directly, so it isn't modeled here — only the
+// public-schema tables the backend actually reads/writes.
+model Profile {
+  id        String   @id @db.Uuid
+  fullName  String   @map("full_name")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  ownedBusinesses Business[]      @relation("BusinessOwner")
+  memberships     BusinessMember[]
+  editedItems     InventoryItem[] @relation("ItemEditor")
+
+  @@map("profiles")
+}
+
+model Business {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String
+  ownerId    String   @map("owner_id") @db.Uuid
+  inviteCode String   @unique @map("invite_code")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  owner   Profile          @relation("BusinessOwner", fields: [ownerId], references: [id])
+  members BusinessMember[]
+  items   InventoryItem[]
+
+  @@map("businesses")
+}
+
+model BusinessMember {
+  businessId String   @map("business_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  role       String // 'owner' | 'member'
+  joinedAt   DateTime @default(now()) @map("joined_at") @db.Timestamptz
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([businessId, userId])
+  @@map("business_members")
+}
+
+model InventoryItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  name       String
+  price      Decimal  @db.Decimal(10, 2)
+  quantity   Int      @default(0)
+  unit       String   @default("piece")
+  updatedAt  DateTime @map("updated_at") @db.Timestamptz
+  updatedBy  String   @map("updated_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  editor   Profile  @relation("ItemEditor", fields: [updatedBy], references: [id], onDelete: Restrict)
+
+  @@map("inventory_items")
+}
