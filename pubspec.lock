@@ -273,6 +273,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.4.1"
+  dart_phonetics:
+    dependency: "direct main"
+    description:
+      name: dart_phonetics
+      sha256: b6b2145f4711267f24e79c2d1b38fe45c828368399cb53ad57df56b15ea42439
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.1"
   dart_style:
     dependency: transitive
     description:

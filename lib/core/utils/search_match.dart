@@ -1,16 +1,26 @@
+import 'package:dart_phonetics/dart_phonetics.dart';
 import 'package:inditrans/inditrans.dart' as inditrans;
 
-/// Cross-script ("Hinglish") search matching: a query typed in English
-/// should match Hindi-named items and vice versa (e.g. "fortune" should
-/// find "फॉर्चून", and "फॉर्चून" should find "Fortune").
+/// Cross-script ("Hinglish") search matching: a query typed OR SPOKEN in
+/// English should match Hindi-named items and vice versa (e.g. "fortune"
+/// should find "फॉर्चून", and "फॉर्चून" should find "Fortune").
 ///
-/// Best-effort, not perfect: romanization schemes render Devanagari
-/// *phonetically*, which doesn't always land on the exact casual English
-/// spelling someone types — e.g. "फॉर्चून" romanizes to something like
-/// "forchoon", not "fortune", even though they're phonetically close.
-/// Plain substring matching misses that; fuzzy (edit-distance-tolerant)
-/// matching below is what actually catches it.
+/// Voice search always transcribes in the hi_IN locale (see
+/// voice_service.dart/mic_search_field.dart), so a spoken English item
+/// name routinely comes back as Devanagari — this is the common case for
+/// voice search on English/brand-name items, not a rare edge case.
+///
+/// Best-effort, not perfect: romanization renders Devanagari
+/// *phonetically* ("फॉर्चून" -> "forchoon"), which is spelled quite
+/// differently from "fortune" even though the two are phonetically
+/// close (English "fortune" is itself pronounced "for-chun" — the
+/// mismatch is in English orthography, not in the sounds). Plain
+/// character edit-distance penalizes that spelling gap harshly; Double
+/// Metaphone (designed exactly for "sounds alike, spelled differently"
+/// English matching — handles digraphs like "tu"/"ti" affricating to a
+/// "ch"/"sh" sound) closes it much better than edit distance alone.
 final _devanagariRegex = RegExp(r'[ऀ-ॿ]');
+final _metaphone = DoubleMetaphone.defaultEncoder;
 
 bool _isDevanagari(String text) => _devanagariRegex.hasMatch(text);
 
@@ -27,7 +37,24 @@ String romanize(String text) {
   }
 }
 
-/// Standard iterative Levenshtein (edit) distance.
+/// Double Metaphone codes for every word in [text] (primary + alternates,
+/// deduplicated) — computed per-word since item names are often multiple
+/// words ("Fortune Sunflower Oil") but a search query is usually one.
+Set<String> _phoneticCodes(String text) {
+  final codes = <String>{};
+  for (final word in text.split(RegExp(r'\s+'))) {
+    if (word.isEmpty) continue;
+    final encoding = _metaphone.encode(word);
+    if (encoding == null) continue;
+    codes.add(encoding.primary);
+    if (encoding.alternates != null) codes.addAll(encoding.alternates!);
+  }
+  return codes;
+}
+
+/// Standard iterative Levenshtein (edit) distance — fallback for
+/// near-typo cases Double Metaphone doesn't cover (e.g. minor spelling
+/// slips within the same script).
 int _levenshtein(String a, String b) {
   if (a == b) return 0;
   if (a.isEmpty) return b.length;
@@ -41,9 +68,9 @@ int _levenshtein(String a, String b) {
     for (int j = 1; j <= b.length; j++) {
       final cost = a[i - 1] == b[j - 1] ? 0 : 1;
       currentRow[j] = [
-        previousRow[j] + 1, // deletion
-        currentRow[j - 1] + 1, // insertion
-        previousRow[j - 1] + cost, // substitution
+        previousRow[j] + 1,
+        currentRow[j - 1] + 1,
+        previousRow[j - 1] + cost,
       ].reduce((a, b) => a < b ? a : b);
     }
     final tmp = previousRow;
@@ -53,15 +80,10 @@ int _levenshtein(String a, String b) {
   return previousRow[b.length];
 }
 
-/// Fuzzy substring check: true if [needle] appears in [haystack] exactly,
-/// OR if some window of [haystack] is within edit-distance tolerance of
-/// [needle] (tolerance scales with needle length — short words need an
-/// almost-exact match, longer ones tolerate a couple character
-/// differences, matching typical romanization drift).
 bool _fuzzyContains(String haystack, String needle) {
   if (needle.isEmpty) return true;
   if (haystack.contains(needle)) return true;
-  if (needle.length < 3) return false; // too short to fuzzy-match meaningfully
+  if (needle.length < 3) return false;
 
   final maxDistance = (needle.length / 3).ceil().clamp(1, 4);
 
@@ -76,24 +98,40 @@ bool _fuzzyContains(String haystack, String needle) {
   return false;
 }
 
+/// Whether any phonetic code of [text] matches any phonetic code of
+/// [query] (Double Metaphone on whichever side is/was romanized to Latin).
+bool _phoneticMatch(String text, String query) {
+  final textCodes = _phoneticCodes(text);
+  if (textCodes.isEmpty) return false;
+  final queryCodes = _phoneticCodes(query);
+  if (queryCodes.isEmpty) return false;
+  return textCodes.intersection(queryCodes).isNotEmpty;
+}
+
 /// Whether [itemName] matches a search [query], checking both scripts —
-/// as typed and romanized — with fuzzy tolerance for phonetic drift
-/// introduced by romanization.
+/// as typed/spoken and romanized — with phonetic matching (primary) and
+/// edit-distance fuzzy matching (fallback) for tolerance.
 bool matchesSearch(String itemName, String query) {
   final q = query.trim().toLowerCase();
   if (q.isEmpty) return true;
 
   final n = itemName.trim().toLowerCase();
-  if (_fuzzyContains(n, q)) return true;
-
   final nRoman = romanize(itemName).toLowerCase();
-  if (_fuzzyContains(nRoman, q)) return true;
-
   final qRoman = romanize(query).toLowerCase();
+
+  // Exact/fuzzy substring, same script or already-romanized
+  if (_fuzzyContains(n, q)) return true;
+  if (_fuzzyContains(nRoman, q)) return true;
   if (qRoman.isNotEmpty) {
     if (_fuzzyContains(n, qRoman)) return true;
     if (_fuzzyContains(nRoman, qRoman)) return true;
   }
+
+  // Phonetic match — catches phonetically-close-but-differently-spelled
+  // cases (e.g. "forchoon" vs "fortune") that edit distance misses
+  if (_phoneticMatch(n, q)) return true;
+  if (qRoman.isNotEmpty && _phoneticMatch(n, qRoman)) return true;
+  if (_phoneticMatch(nRoman, q)) return true;
 
   return false;
 }
