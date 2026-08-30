@@ -8,6 +8,7 @@ import '../../../core/theme/colors.dart';
 import '../../../core/utils/invite_share.dart';
 import '../../../core/utils/name_formatter.dart';
 import '../../../core/utils/offline_guard.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../business/providers/business_providers.dart';
 import '../providers/team_providers.dart';
 
@@ -23,6 +24,7 @@ class TeamScreen extends ConsumerWidget {
     final roleAsync = ref.watch(currentUserRoleProvider);
     final isOwner = roleAsync.value == 'owner';
     final businessAsync = ref.watch(currentBusinessProvider);
+    final currentUserId = ref.watch(authSessionProvider).valueOrNull?.user?.id;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -41,6 +43,7 @@ class TeamScreen extends ConsumerWidget {
               return _MemberCard(
                 member: member,
                 isCurrentUserOwner: isOwner,
+                isCurrentUser: member.userId == currentUserId,
                 businessId: businessAsync.value?.id,
               );
             },
@@ -258,11 +261,13 @@ class _InviteCodeSheetState extends ConsumerState<_InviteCodeSheet> {
 class _MemberCard extends ConsumerWidget {
   final BusinessMember member;
   final bool isCurrentUserOwner;
+  final bool isCurrentUser;
   final String? businessId;
 
   const _MemberCard({
     required this.member,
     required this.isCurrentUserOwner,
+    required this.isCurrentUser,
     required this.businessId,
   });
 
@@ -294,6 +299,43 @@ class _MemberCard extends ConsumerWidget {
 
     try {
       await ref.read(removeMemberProvider(member.userId).future);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleLeave(BuildContext context, WidgetRef ref) async {
+    if (!await ensureOnline(context)) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${Strings.leaveBusiness}?'),
+        content: const Text('क्या आप दुकान छोड़ना चाहते हैं?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(Strings.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              Strings.leaveBusiness,
+              style: const TextStyle(color: AppColors.danger),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(leaveBusinessProvider.future);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -346,12 +388,22 @@ class _MemberCard extends ConsumerWidget {
                 ],
               ),
             ),
-            // Owner-only remove action (design.md rule 6: secondary/rare, smaller)
+            // Owner-only remove action for OTHER members (rule 6: secondary/rare, smaller)
             if (isCurrentUserOwner && !member.isOwner)
               IconButton(
                 onPressed: isOnline ? () => _handleRemove(context, ref) : null,
                 icon: Icon(
                   Icons.person_remove_outlined,
+                  color: isOnline ? AppColors.danger : AppColors.inkSoft,
+                ),
+              ),
+            // Leave action on the current user's OWN row — owner cannot
+            // leave (must delete the business instead, confirmed decision)
+            if (isCurrentUser && !member.isOwner)
+              IconButton(
+                onPressed: isOnline ? () => _handleLeave(context, ref) : null,
+                icon: Icon(
+                  Icons.exit_to_app,
                   color: isOnline ? AppColors.danger : AppColors.inkSoft,
                 ),
               ),

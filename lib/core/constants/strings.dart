@@ -38,6 +38,8 @@ class Strings {
   static const owner = 'मालिक';
   static const member = 'सदस्य';
   static const removingMember = 'हटा रहे हैं...';
+  static const leaveBusiness = 'दुकान छोड़ें';
+  static const leavingBusiness = 'छोड़ रहे हैं...';
 
   // Settings
   static const settings = 'सेटिंग्स';
