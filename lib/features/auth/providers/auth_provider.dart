@@ -58,7 +58,7 @@ final googleSignInProvider = FutureProvider.autoDispose<void>((ref) async {
     // The new version of supabase_flutter uses enum OAuthProvider.google
     await SupabaseClientService.auth.signInWithOAuth(
       OAuthProvider.google,
-      redirectTo: 'io.supabase.flutter://callback/',
+      redirectTo: 'com.example.bahi://callback',
     );
   } catch (e) {
     print('Google sign-in error: $e');
