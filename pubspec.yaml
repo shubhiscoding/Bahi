@@ -20,8 +20,8 @@ dependencies:
     sdk: flutter
 
   # Auth & backend
-  supabase_flutter: ^1.10.0
-  google_sign_in: ^6.1.6
+  supabase_flutter: ^2.0.0
+  # google_sign_in: ^6.1.6 (temporarily removed; use Supabase OAuth flow instead; gradle issue)
 
   # State management
   flutter_riverpod: ^2.4.10
@@ -32,9 +32,9 @@ dependencies:
   path: ^1.8.3
   path_provider: ^2.1.0
 
-  # Voice input/output
-  speech_to_text: ^6.1.1
-  flutter_tts: ^4.2.5
+  # Voice input/output (temporarily removed due to gradle issues; will integrate in separate pass)
+  # speech_to_text: ^6.1.1
+  # flutter_tts: ^4.2.5
 
   # Connectivity detection
   connectivity_plus: ^5.0.2
@@ -43,15 +43,15 @@ dependencies:
   cupertino_icons: ^1.0.6
   google_fonts: ^6.0.0
 
-  # In-app updates
-  flutter_downloader: ^1.10.9
-  permission_handler: ^11.0.0
+  # In-app updates (temporarily removed; Kotlin compatibility issue; will integrate later)
+  # flutter_downloader: ^1.10.9
+  # permission_handler: ^11.0.0
 
-  # App info
-  package_info_plus: ^7.0.0
+  # App info (temporarily removed; Kotlin compatibility issue; will integrate later)
+  # package_info_plus: ^7.0.0
 
-  # Share intent
-  share_plus: ^9.0.0
+  # Share intent (temporarily removed; Kotlin compatibility issue; will integrate later)
+  # share_plus: ^9.0.0
 
 dev_dependencies:
   flutter_test:

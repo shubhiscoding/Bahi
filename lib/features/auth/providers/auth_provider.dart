@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'
     hide User; // Hide User from supabase to avoid conflict with our User model
-import 'package:gotrue/src/types/provider.dart' as gotrue_provider;
 import '../../../core/models/user.dart';
 import '../../../core/services/supabase_client.dart';
 
@@ -56,9 +55,10 @@ final userBusinessesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) 
 final googleSignInProvider = FutureProvider.autoDispose<void>((ref) async {
   try {
     // Use the built-in Google OAuth provider from Supabase
+    // The new version of supabase_flutter uses enum OAuthProvider.google
     await SupabaseClientService.auth.signInWithOAuth(
-      gotrue_provider.Provider.google,
-      redirectTo: 'com.example.bahi://callback/',
+      OAuthProvider.google,
+      redirectTo: 'io.supabase.flutter://callback/',
     );
   } catch (e) {
     print('Google sign-in error: $e');
