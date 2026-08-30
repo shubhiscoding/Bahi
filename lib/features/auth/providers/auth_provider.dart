@@ -1,13 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'
-    hide User; // Hide User from supabase to avoid conflict with our User model
+import 'package:supabase_flutter/supabase_flutter.dart' as supa;
 import '../../../core/models/user.dart';
 import '../../../core/services/supabase_client.dart';
 
 /// Auth state model
 class AuthState {
-  final Session? session;
-  final AuthUser? user;
+  final supa.Session? session;
+  final supa.User? user;
 
   AuthState({
     required this.session,
@@ -31,7 +30,7 @@ final authSessionProvider = StreamProvider<AuthState>((ref) {
 final googleSignInProvider = FutureProvider.autoDispose<void>((ref) async {
   try {
     await SupabaseClientService.auth.signInWithOAuth(
-      OAuthProvider.google,
+      supa.OAuthProvider.google,
       redirectTo: 'com.example.bahi://callback',
     );
   } catch (e) {

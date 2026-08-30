@@ -6,10 +6,8 @@ import '../repositories/business_repository.dart';
 /// Create a new business
 final createBusinessProvider =
     FutureProvider.autoDispose.family<Business, String>((ref, businessName) async {
-  final authStateAsync = ref.watch(authSessionProvider);
-
-  final authState = await authStateAsync.whenData((state) => state);
-  if (authState == null || authState.user == null) {
+  final authState = await ref.watch(authSessionProvider.future);
+  if (authState.user == null) {
     throw Exception('Not authenticated');
   }
 
@@ -22,10 +20,8 @@ final createBusinessProvider =
 /// Join a business by invite code
 final joinBusinessProvider =
     FutureProvider.autoDispose.family<void, String>((ref, inviteCode) async {
-  final authStateAsync = ref.watch(authSessionProvider);
-
-  final authState = await authStateAsync.whenData((state) => state);
-  if (authState == null || authState.user == null) {
+  final authState = await ref.watch(authSessionProvider.future);
+  if (authState.user == null) {
     throw Exception('Not authenticated');
   }
 
@@ -37,10 +33,8 @@ final joinBusinessProvider =
 
 /// Get all businesses for current user
 final userBusinessesProvider = FutureProvider<List<Business>>((ref) async {
-  final authStateAsync = ref.watch(authSessionProvider);
-
-  final authState = await authStateAsync.whenData((state) => state);
-  if (authState == null || authState.user == null) return [];
+  final authState = await ref.watch(authSessionProvider.future);
+  if (authState.user == null) return [];
 
   return BusinessRepository.getUserBusinesses(authState.user!.id);
 });
