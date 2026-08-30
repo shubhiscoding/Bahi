@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
+import '../../../core/services/update_service.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/name_formatter.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -20,6 +21,53 @@ class AppShellScreen extends ConsumerStatefulWidget {
 class _AppShellScreenState extends ConsumerState<AppShellScreen> {
   int _selectedTab = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    // Check for updates automatically on launch (silent — no dialog if
+    // there's nothing new), per the confirmed update UX decision.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdate(silent: true));
+  }
+
+  Future<void> _checkForUpdate({required bool silent}) async {
+    final update = await UpdateService.checkForUpdate();
+    if (!mounted) return;
+
+    if (update == null) {
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('अभी कोई अपडेट नहीं है')),
+        );
+      }
+      return;
+    }
+
+    // Optional update: user can dismiss or update (confirmed decision)
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('नया वर्शन उपलब्ध है'),
+        content: Text('वर्शन ${update.version} डाउनलोड करें?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('बाद में'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              UpdateService.downloadUpdate(update.downloadUrl);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(Strings.downloadingUpdate)),
+              );
+            },
+            child: const Text('अपडेट करें'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _openSettingsSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -27,7 +75,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (sheetContext) => _SettingsSheet(),
+      builder: (sheetContext) => _SettingsSheet(onCheckForUpdates: () => _checkForUpdate(silent: false)),
     );
   }
 
@@ -124,6 +172,10 @@ class _UserHeader extends StatelessWidget {
 
 /// Settings sheet (design.md §7.5): Check for Updates + Logout
 class _SettingsSheet extends ConsumerWidget {
+  final VoidCallback onCheckForUpdates;
+
+  const _SettingsSheet({required this.onCheckForUpdates});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return SafeArea(
@@ -139,13 +191,10 @@ class _SettingsSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
 
-            // Check for updates (stub — wired for real in a later pass)
             OutlinedButton.icon(
               onPressed: () {
                 Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('अभी कोई अपडेट नहीं है')),
-                );
+                onCheckForUpdates();
               },
               icon: const Icon(Icons.system_update, size: 24),
               label: Text(Strings.checkForUpdates),
