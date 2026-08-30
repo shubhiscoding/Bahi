@@ -2,6 +2,10 @@
     <!-- Required to launch the system installer for the downloaded update APK -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
 
+    <!-- Required for voice input (design.md rule 1: mic is the primary input) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="bahi"
         android:name="${applicationName}"

@@ -5,6 +5,7 @@ import '../../../core/models/inventory_item.dart';
 import '../../../core/providers/connectivity_provider.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/offline_guard.dart';
+import '../../../core/widgets/voice_confirm_sheet.dart';
 import '../providers/inventory_providers.dart';
 import '../../team/providers/team_providers.dart';
 
@@ -20,8 +21,8 @@ const _units = [
 ];
 
 /// Add/Edit Item Screen (design.md §5)
-/// Typed fields for now; mic buttons present but disabled until voice
-/// input is wired in a later pass (design.md rule 1, deferred per plan §N).
+/// Voice-first fields (rule 1: mic → listen → confirm both visually and
+/// audibly), with typing as fallback.
 class AddEditItemScreen extends ConsumerStatefulWidget {
   final InventoryItem? item; // null = create, set = edit
 
@@ -177,7 +178,7 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Name field (mic-ready layout — mic wiring deferred, rule 1)
+              // Name field (voice-first, per design.md rule 1)
               _FieldWithMic(
                 label: Strings.itemName,
                 controller: _nameController,
@@ -190,6 +191,7 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
                 label: Strings.itemQuantity,
                 controller: _quantityController,
                 keyboardType: TextInputType.number,
+                isNumeric: true,
               ),
               const SizedBox(height: 20),
 
@@ -199,6 +201,7 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
                 controller: _priceController,
                 keyboardType: TextInputType.number,
                 prefixText: '₹ ',
+                isNumeric: true,
               ),
               const SizedBox(height: 20),
 
@@ -265,20 +268,39 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
   }
 }
 
-/// A text field with a disabled mic button placeholder (design.md rule 1:
-/// mic-first layout, wiring deferred to a later pass — see plan §N).
+/// A text field with a mic button (design.md rule 1: voice is the primary
+/// input, typing is the fallback — mic is the largest, most dominant
+/// control on this row).
 class _FieldWithMic extends StatelessWidget {
   final String label;
   final TextEditingController controller;
   final TextInputType keyboardType;
   final String? prefixText;
+  final bool isNumeric;
 
   const _FieldWithMic({
     required this.label,
     required this.controller,
     required this.keyboardType,
     this.prefixText,
+    this.isNumeric = false,
   });
+
+  Future<void> _handleMicTap(BuildContext context) async {
+    final heardText = await showVoiceInputSheet(context, fieldLabel: label);
+    if (heardText == null) return;
+
+    if (isNumeric) {
+      // Best-effort: pull digits out of the recognized speech. Spoken
+      // Hindi number words (e.g. "पांच सौ") aren't parsed — the digit
+      // extraction covers the common case where the recognizer already
+      // returns numerals, and the field remains editable either way.
+      final digits = RegExp(r'\d+').firstMatch(heardText)?.group(0);
+      controller.text = digits ?? heardText;
+    } else {
+      controller.text = heardText;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -290,6 +312,21 @@ class _FieldWithMic extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            // Mic button — largest, most dominant control (rule 1)
+            InkWell(
+              onTap: () => _handleMicTap(context),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.mic, color: Colors.white, size: 28),
+              ),
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: TextField(
                 controller: controller,
@@ -300,17 +337,6 @@ class _FieldWithMic extends StatelessWidget {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            // Mic button placeholder — disabled until voice input is wired (plan §N)
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.mic_off, color: AppColors.inkSoft, size: 24),
             ),
           ],
         ),
