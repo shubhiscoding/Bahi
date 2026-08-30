@@ -43,3 +43,8 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+// Exclude iOS-only plugins from Android build
+configurations.all {
+    exclude(group = "io.flutter.plugins.sign_in_with_apple", module = "sign_in_with_apple")
+}
