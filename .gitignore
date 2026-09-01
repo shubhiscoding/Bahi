@@ -47,3 +47,4 @@ app.*.map.json
 # Secrets (never commit)
 lib/core/config/supabase_config.dart
 *.apk
+*.pem
