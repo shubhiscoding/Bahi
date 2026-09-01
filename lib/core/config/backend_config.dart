@@ -1,8 +1,12 @@
 /// Base URL for the Node/Express backend.
 ///
-/// Currently pointed at the Vercel deployment (REST only — Socket.IO
-/// live updates don't run there, see backend/api/index.ts; the app still
-/// works via REST fetch-on-load, just without real-time push updates
-/// until sockets are hosted somewhere that supports persistent
-/// connections, e.g. the EC2 plan discussed separately).
-const String backendBaseUrl = 'https://bahi-murex.vercel.app';
+/// Pointed at the AWS EC2 deployment — moved off Vercel due to
+/// serverless cold-start latency. This also restores real-time
+/// Socket.IO updates (Vercel only ran the REST-only api/index.ts subset
+/// since serverless functions can't hold persistent WebSocket
+/// connections — EC2 runs the full src/index.ts server, sockets included).
+///
+/// Plain HTTP for now (no domain yet — raw IP can't get a Let's Encrypt
+/// cert, which requires domain validation). Move to HTTPS via a domain +
+/// nginx + certbot once one is available.
+const String backendBaseUrl = 'http://13.201.193.198:4000';
