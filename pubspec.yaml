@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # version = tag for GitHub Releases: v<major>.<minor>.<patch>
 # build number = Android versionCode (increment per release)
-version: 0.3.2+3
+version: 0.3.3+3
 
 environment:
   sdk: ^3.12.2
