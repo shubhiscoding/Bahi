@@ -1,0 +1,29 @@
+services:
+  # Local Postgres for dev — a sandbox to test against without touching
+  # the real Supabase DB or fighting its IPv6-only direct host from this
+  # machine (see backend/.env's comment). Auth still goes through the real
+  # Supabase project (JWKS verification is unaffected); only the data
+  # plane (DATABASE_URL) points here when using .env.local.
+  postgres:
+    image: postgres:16
+    container_name: bahi-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bahi
+      POSTGRES_PASSWORD: bahi_dev
+      POSTGRES_DB: bahi_dev
+    ports:
+      # 5434, not 5432 — avoids clashing with any Postgres already
+      # running locally on the default port (5433 was also taken on this
+      # machine by an unrelated project's container).
+      - "5434:5432"
+    volumes:
+      - bahi_postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bahi -d bahi_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  bahi_postgres_dev_data:

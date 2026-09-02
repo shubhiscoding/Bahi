@@ -1,5 +1,6 @@
 import 'dart:async';
 import '../../../core/models/inventory_item.dart';
+import '../../../core/models/price_history_point.dart';
 import '../../../core/services/api_client.dart';
 import '../../../core/services/local_cache_service.dart';
 import '../../../core/services/socket_service.dart';
@@ -129,5 +130,16 @@ class InventoryRepository {
     required String itemId,
   }) async {
     await ApiClient.instance.delete('/businesses/$businessId/items/$itemId');
+  }
+
+  /// Full price history, ascending — the item detail screen filters this
+  /// into All-time/7-day/month windows client-side (Phase 7 §A).
+  static Future<List<PriceHistoryPoint>> fetchPriceHistory({
+    required String businessId,
+    required String itemId,
+  }) async {
+    final response =
+        await ApiClient.instance.get('/businesses/$businessId/items/$itemId/price-history');
+    return (response.data as List).map((p) => PriceHistoryPoint.fromJson(p)).toList();
   }
 }

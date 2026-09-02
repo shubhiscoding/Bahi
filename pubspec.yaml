@@ -58,6 +58,10 @@ dependencies:
   # Share intent
   share_plus: ^10.1.4
 
+  # Price-tracker chart on the item detail screen (pure Dart, no
+  # native/FFI code — lower build risk than inditrans below)
+  fl_chart: ^0.69.0
+
   # Devanagari<->Latin romanization for Hinglish/cross-script search matching
   inditrans: ^0.12.1
   # Phonetic (Double Metaphone) matching — handles English spelling quirks

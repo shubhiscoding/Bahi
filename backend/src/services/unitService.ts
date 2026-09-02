@@ -5,11 +5,14 @@ import { prisma } from '../prisma';
 const SEED_UNIT_NAMES = ['डिब्बा', 'किग्रा', 'लीटर'];
 
 export const unitService = {
+  // Sorted by recency (last used on an item) — never-used units (null)
+  // sort after ones with real usage. Drives the unit picker's recency
+  // sort + 8-item cap on the Flutter side (Phase 7 §C).
   async listForBusiness(businessId: string) {
     const links = await prisma.businessUnit.findMany({
       where: { businessId },
       include: { unit: true },
-      orderBy: { unit: { name: 'asc' } },
+      orderBy: { lastUsedAt: { sort: 'desc', nulls: 'last' } },
     });
     return links.map((l) => ({ id: l.unit.id, name: l.unit.name }));
   },

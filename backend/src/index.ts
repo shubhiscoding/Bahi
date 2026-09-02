@@ -4,6 +4,7 @@ import { createServer } from 'http';
 import { env } from './env';
 import { authRoutes } from './routes/auth.routes';
 import { businessRoutes } from './routes/business.routes';
+import { devRoutes } from './routes/dev.routes';
 import { inventoryRoutes } from './routes/inventory.routes';
 import { initSockets } from './sockets';
 
@@ -23,6 +24,12 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/auth', authRoutes);
 app.use('/businesses', businessRoutes);
 app.use('/businesses/:businessId/items', inventoryRoutes);
+
+// Dev-only, never mounted in prod — see routes/dev.routes.ts.
+if (env.devMode) {
+  console.log('DEV_MODE on — mounting /dev/* test routes');
+  app.use('/dev', devRoutes);
+}
 
 // Basic error handler — surfaces unexpected errors as 500s instead of
 // crashing the process silently.

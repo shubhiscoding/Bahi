@@ -10,6 +10,7 @@ import '../../../core/widgets/mic_search_field.dart';
 import '../../team/providers/team_providers.dart';
 import '../providers/inventory_providers.dart';
 import 'add_edit_item_screen.dart';
+import 'item_detail_screen.dart';
 
 /// Inventory List Screen (design.md §5)
 /// Real item list, "edited by" attribution (rule 10), one primary FAB (rule 6).
@@ -176,7 +177,7 @@ class _ItemCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(8),
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => AddEditItemScreen(item: item)),
+            MaterialPageRoute(builder: (_) => ItemDetailScreen(item: item)),
           );
         },
         child: Padding(

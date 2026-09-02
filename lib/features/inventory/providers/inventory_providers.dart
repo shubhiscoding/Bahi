@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/inventory_item.dart';
+import '../../../core/models/price_history_point.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../business/providers/business_providers.dart';
 import '../repositories/inventory_repository.dart';
@@ -74,4 +75,13 @@ final deleteItemProvider =
   if (business == null) throw Exception('No business selected');
 
   await InventoryRepository.deleteItem(businessId: business.id, itemId: itemId);
+});
+
+/// Full price history for an item, ascending — feeds the price-tracker
+/// chart on the item detail screen (Phase 7 §A/§B).
+final priceHistoryProvider =
+    FutureProvider.autoDispose.family<List<PriceHistoryPoint>, String>((ref, itemId) async {
+  final business = await ref.watch(currentBusinessProvider.future);
+  if (business == null) return [];
+  return InventoryRepository.fetchPriceHistory(businessId: business.id, itemId: itemId);
 });

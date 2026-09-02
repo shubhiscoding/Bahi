@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/config/backend_config.dart';
 import '../../../core/constants/strings.dart';
 import '../../../core/models/business.dart';
 import '../../../core/providers/connectivity_provider.dart';
@@ -10,6 +11,7 @@ import '../../../core/utils/name_formatter.dart';
 import '../../../core/utils/offline_guard.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../business/providers/business_providers.dart';
+import '../providers/dev_test_role_provider.dart';
 import '../providers/team_providers.dart';
 
 /// Team Screen (design.md §6)
@@ -28,47 +30,61 @@ class TeamScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: membersAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
-        error: (err, stack) => _errorState(),
-        data: (members) {
-          if (members.isEmpty) {
-            return _emptyState();
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: members.length,
-            itemBuilder: (context, index) {
-              final member = members[index];
-              return _MemberCard(
-                member: member,
-                isCurrentUserOwner: isOwner,
-                isCurrentUser: member.userId == currentUserId,
-                businessId: businessAsync.value?.id,
-              );
-            },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          final business = businessAsync.value;
-          if (business == null) return;
-          showModalBottomSheet(
-            context: context,
-            backgroundColor: AppColors.surface,
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      body: Column(
+        children: [
+          if (isLocalBackend) const _DevRoleSwitcher(),
+          Expanded(
+            child: membersAsync.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+              error: (err, stack) => _errorState(),
+              data: (members) {
+                if (members.isEmpty) {
+                  return _emptyState();
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: members.length,
+                  itemBuilder: (context, index) {
+                    final member = members[index];
+                    return _MemberCard(
+                      member: member,
+                      isCurrentUserOwner: isOwner,
+                      isCurrentUser: member.userId == currentUserId,
+                      businessId: businessAsync.value?.id,
+                    );
+                  },
+                );
+              },
             ),
-            builder: (_) => _InviteCodeSheet(businessId: business.id, businessName: business.name),
-          );
-        },
-        icon: const Icon(Icons.person_add, size: 28),
-        label: Text(
-          Strings.addCoworker,
-          style: Theme.of(context).textTheme.labelLarge,
-        ),
+          ),
+        ],
       ),
+      // Invite is owner-only — the backend already enforces this
+      // (requireOwner on POST /:businessId/invite-code); hiding the FAB
+      // for non-owners here stops them from tapping into a confusing 403.
+      floatingActionButton: isOwner
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                final business = businessAsync.value;
+                if (business == null) return;
+                showModalBottomSheet(
+                  context: context,
+                  backgroundColor: AppColors.surface,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                  ),
+                  builder: (_) =>
+                      _InviteCodeSheet(businessId: business.id, businessName: business.name),
+                );
+              },
+              icon: const Icon(Icons.person_add, size: 28),
+              label: Text(
+                Strings.addCoworker,
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+            )
+          : null,
     );
   }
 
@@ -106,6 +122,73 @@ class TeamScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// DEV ONLY (isLocalBackend-gated) — flips your own role on the seeded
+/// dev business between owner/member, so both views can be tested from
+/// one real signed-in account. Never appears in a build pointed at prod.
+class _DevRoleSwitcher extends ConsumerStatefulWidget {
+  const _DevRoleSwitcher();
+
+  @override
+  ConsumerState<_DevRoleSwitcher> createState() => _DevRoleSwitcherState();
+}
+
+class _DevRoleSwitcherState extends ConsumerState<_DevRoleSwitcher> {
+  bool _isSwitching = false;
+
+  Future<void> _switchTo(String role) async {
+    setState(() => _isSwitching = true);
+    try {
+      await ref.read(devTestRoleProvider(role).future);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSwitching = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentRole = ref.watch(currentUserRoleProvider).value;
+
+    return Container(
+      color: AppColors.accentSoft,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.bug_report, size: 18, color: AppColors.accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'DEV: टेस्ट भूमिका — ${currentRole ?? "?"}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          if (_isSwitching)
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+            )
+          else ...[
+            TextButton(
+              onPressed: currentRole == 'owner' ? null : () => _switchTo('owner'),
+              child: const Text('मालिक'),
+            ),
+            TextButton(
+              onPressed: currentRole == 'member' ? null : () => _switchTo('member'),
+              child: const Text('सदस्य'),
+            ),
+          ],
+        ],
       ),
     );
   }
