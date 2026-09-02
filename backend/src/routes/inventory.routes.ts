@@ -70,3 +70,14 @@ inventoryRoutes.delete(
     res.status(204).send();
   }),
 );
+
+// Full price history, ascending — the item detail screen filters this into
+// All-time/7-day/month windows client-side (Phase 7 §A).
+inventoryRoutes.get(
+  '/:itemId/price-history',
+  requireMembership,
+  asyncHandler(async (req, res) => {
+    const history = await inventoryService.priceHistory(req.params.itemId);
+    res.json(history);
+  }),
+);

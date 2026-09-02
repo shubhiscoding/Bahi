@@ -7,6 +7,21 @@ export interface ItemInput {
   unit: string;
 }
 
+/**
+ * Touches BusinessUnit.lastUsedAt for the given unit name, if it's linked
+ * to this business — drives the unit picker's recency sort (Phase 7 §C).
+ * Silently no-ops if the unit isn't linked (e.g. a stale/unknown string);
+ * item saves should never fail because of this bookkeeping.
+ */
+async function touchUnitLastUsed(businessId: string, unitName: string) {
+  const unit = await prisma.unit.findUnique({ where: { name: unitName } });
+  if (!unit) return;
+  await prisma.businessUnit.updateMany({
+    where: { businessId, unitId: unit.id },
+    data: { lastUsedAt: new Date() },
+  });
+}
+
 export const inventoryService = {
   async list(businessId: string) {
     return prisma.inventoryItem.findMany({
@@ -19,7 +34,7 @@ export const inventoryService = {
   // hard requirement carried over from the original plan (§9): no write
   // path may ever create/update a row without stamping who and when.
   async create(businessId: string, updatedBy: string, input: ItemInput) {
-    return prisma.inventoryItem.create({
+    const item = await prisma.inventoryItem.create({
       data: {
         businessId,
         name: input.name,
@@ -30,10 +45,20 @@ export const inventoryService = {
         updatedAt: new Date(),
       },
     });
+
+    // Seed the price history with the starting price (Phase 7 §A).
+    await prisma.inventoryPriceHistory.create({
+      data: { itemId: item.id, price: item.price },
+    });
+    await touchUnitLastUsed(businessId, input.unit);
+
+    return item;
   },
 
   async update(itemId: string, updatedBy: string, input: ItemInput) {
-    return prisma.inventoryItem.update({
+    const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
+
+    const item = await prisma.inventoryItem.update({
       where: { id: itemId },
       data: {
         name: input.name,
@@ -44,6 +69,17 @@ export const inventoryService = {
         updatedAt: new Date(),
       },
     });
+
+    // Only record a new history point when the price actually changed —
+    // confirmed decision, not on every save (Phase 7 §A).
+    if (existing && Number(existing.price) !== Number(item.price)) {
+      await prisma.inventoryPriceHistory.create({
+        data: { itemId: item.id, price: item.price },
+      });
+    }
+    await touchUnitLastUsed(item.businessId, input.unit);
+
+    return item;
   },
 
   async delete(itemId: string) {
@@ -52,5 +88,12 @@ export const inventoryService = {
 
   async getById(itemId: string) {
     return prisma.inventoryItem.findUnique({ where: { id: itemId } });
+  },
+
+  async priceHistory(itemId: string) {
+    return prisma.inventoryPriceHistory.findMany({
+      where: { itemId },
+      orderBy: { recordedAt: 'asc' },
+    });
   },
 };

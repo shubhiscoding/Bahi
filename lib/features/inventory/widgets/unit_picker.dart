@@ -108,8 +108,12 @@ class _UnitPickerState extends ConsumerState<UnitPicker> {
             style: TextStyle(color: AppColors.danger),
           ),
           data: (units) {
+            // units is already sorted by recency (last used on an item)
+            // server-side. Empty search shows only the top 8 — full list
+            // is one search away (confirmed decision, Phase 7 §C).
+            const maxWithoutSearch = 8;
             final filtered = _searchQuery.isEmpty
-                ? units
+                ? units.take(maxWithoutSearch).toList()
                 : units
                     .where((u) => u.name.toLowerCase().contains(_searchQuery.toLowerCase()))
                     .toList();

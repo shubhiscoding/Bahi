@@ -62,9 +62,12 @@ model Unit {
 /// linked units, not a cross-business suggestion list — confirmed
 /// requirement). Every new business gets 3 seed units linked at creation.
 model BusinessUnit {
-  businessId String   @map("business_id") @db.Uuid
-  unitId     String   @map("unit_id") @db.Uuid
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  businessId String    @map("business_id") @db.Uuid
+  unitId     String    @map("unit_id") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  // Last time this unit was used on an item save for this business — drives
+  // the unit picker's recency sort (Phase 7 §C). Null = never used yet.
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   unit     Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
@@ -120,6 +123,22 @@ model InventoryItem {
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   editor   Profile  @relation("ItemEditor", fields: [updatedBy], references: [id], onDelete: Restrict)
+  priceHistory InventoryPriceHistory[]
 
   @@map("inventory_items")
+}
+
+/// One row per distinct price the item has ever had — a new row is only
+/// inserted when the price actually changes (create() seeds the first row;
+/// update() adds one only if the new price differs from the current one).
+/// Backs the price-tracker chart on the item detail screen (Phase 7 §A/§B).
+model InventoryPriceHistory {
+  id         String   @id @default(uuid()) @db.Uuid
+  itemId     String   @map("item_id") @db.Uuid
+  price      Decimal  @db.Decimal(10, 2)
+  recordedAt DateTime @default(now()) @map("recorded_at") @db.Timestamptz
+
+  item InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("inventory_price_history")
 }

@@ -16,4 +16,10 @@ export const env = {
   // JWKS, not a shared secret. See middleware/auth.ts.
   supabaseJwksUrl: required('SUPABASE_JWKS_URL'),
   port: Number(process.env.PORT ?? 4000),
+  // Only ever true when running against .env.local (local Docker
+  // Postgres) — never set in the real .env / EC2 deploy secrets. Gates
+  // the /dev/* routes (see routes/dev.routes.ts), which let a real,
+  // already-signed-in user flip their own role on the seeded dev
+  // business for testing, without any auth bypass.
+  devMode: process.env.DEV_MODE === 'true',
 };
