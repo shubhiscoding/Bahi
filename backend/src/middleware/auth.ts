@@ -31,6 +31,17 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   const token = authHeader.slice('Bearer '.length);
 
+  // Test-only bypass — real Supabase JWTs require a network round-trip to
+  // JWKS per token, too slow/flaky for a test suite that runs on every
+  // change. NODE_ENV=test is only ever set by the test runner (see
+  // backend/.env.test), never in .env/.env.local/EC2 secrets — mirrors
+  // the existing DEV_MODE precedent (narrow, env-gated, inert otherwise).
+  if (process.env.NODE_ENV === 'test' && token.startsWith('test:')) {
+    const [, id, fullName] = token.split(':');
+    req.user = { id, fullName: fullName ?? 'Test User' };
+    return next();
+  }
+
   try {
     const payload = await verifySupabaseJwt(token);
 

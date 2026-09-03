@@ -142,4 +142,19 @@ class InventoryRepository {
         await ApiClient.instance.get('/businesses/$businessId/items/$itemId/price-history');
     return (response.data as List).map((p) => PriceHistoryPoint.fromJson(p)).toList();
   }
+
+  /// "Add stock" — pure quantity increment, doesn't touch price
+  /// (Phase 8 §B). The item:updated socket event patches the already-live
+  /// watchItems() list, same as any other edit.
+  static Future<InventoryItem> addStock({
+    required String businessId,
+    required String itemId,
+    required int quantity,
+  }) async {
+    final response = await ApiClient.instance.post(
+      '/businesses/$businessId/items/$itemId/add-stock',
+      data: {'quantity': quantity},
+    );
+    return InventoryItem.fromJson(response.data);
+  }
 }

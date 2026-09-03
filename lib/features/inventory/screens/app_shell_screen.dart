@@ -8,12 +8,14 @@ import '../../../core/services/update_service.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/name_formatter.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../buyers/screens/buyers_list_screen.dart';
 import 'inventory_list_screen.dart';
 import '../../team/screens/team_screen.dart';
 
-/// App Shell — wraps Inventory + Team tabs with a persistent user avatar
-/// header (design.md rule 4: always visible, never tucked into a menu) and
-/// a bottom nav with max 2 icons (rule 5).
+/// App Shell — wraps Inventory/Bill/Team tabs with a persistent user
+/// avatar header (design.md rule 4: always visible, never tucked into a
+/// menu) and a bottom nav with max 3 icons (rule 5) — Phase 8 added Bill;
+/// a future Dashboard tab will deliberately relax this to 4.
 class AppShellScreen extends ConsumerStatefulWidget {
   const AppShellScreen({super.key});
 
@@ -154,9 +156,13 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
         index: _selectedTab,
         children: const [
           InventoryListScreen(),
+          BuyersListScreen(),
           TeamScreen(),
         ],
       ),
+      // 3 tabs — still within the existing max-3-icon rule (Phase 8's
+      // Dashboard tab was explicitly deferred; when it lands, the rule is
+      // deliberately relaxed to 4, per the confirmed decision).
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedTab,
         onTap: (idx) => setState(() => _selectedTab = idx),
@@ -164,6 +170,10 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
           BottomNavigationBarItem(
             icon: const Icon(Icons.inventory_2, size: 28),
             label: Strings.inventory,
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.receipt_long, size: 28),
+            label: Strings.bill,
           ),
           BottomNavigationBarItem(
             icon: const Icon(Icons.people, size: 28),

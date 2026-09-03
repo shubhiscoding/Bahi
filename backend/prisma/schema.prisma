@@ -27,6 +27,9 @@ model Profile {
   inviteCodesUsed    InviteCode[]    @relation("InviteCodeUsedBy")
   inviteCodesCreated InviteCode[]    @relation("InviteCodeCreatedBy")
   priceHistoryEdits  InventoryPriceHistory[] @relation("PriceHistoryEditor")
+  itemEditLogEntries InventoryEditLog[]      @relation("ItemEditLogEditor")
+  billsCreated       Bill[]                  @relation("BillCreator")
+  paymentsRecorded   BillPayment[]           @relation("BillPaymentRecorder")
 
   @@map("profiles")
 }
@@ -42,6 +45,8 @@ model Business {
   items       InventoryItem[]
   inviteCodes InviteCode[]
   units       BusinessUnit[]
+  buyers      Buyer[]
+  bills       Bill[]
 
   @@map("businesses")
 }
@@ -125,6 +130,8 @@ model InventoryItem {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   editor   Profile  @relation("ItemEditor", fields: [updatedBy], references: [id], onDelete: Restrict)
   priceHistory InventoryPriceHistory[]
+  editLog      InventoryEditLog[]
+  billItems    BillItem[]
 
   @@map("inventory_items")
 }
@@ -150,4 +157,105 @@ model InventoryPriceHistory {
   editor Profile?      @relation("PriceHistoryEditor", fields: [editedBy], references: [id], onDelete: SetNull)
 
   @@map("inventory_price_history")
+}
+
+/// General-purpose "what changed on this item, by whom, when" ledger —
+/// broader than InventoryPriceHistory above (which stays price-only, for
+/// the chart). One row per write that actually changed something.
+/// Phase 8 §A — data pipe only for now, no UI consumes this yet.
+model InventoryEditLog {
+  id       String   @id @default(uuid()) @db.Uuid
+  itemId   String   @map("item_id") @db.Uuid
+  editedBy String   @map("edited_by") @db.Uuid
+  editedAt DateTime @default(now()) @map("edited_at") @db.Timestamptz
+  // 'edit' (manual field edit) | 'restock' (§B add-stock CTA) | 'sale'
+  // (quantity decrement from billing, §D) — lets future UI distinguish
+  // these without parsing `changes`.
+  source   String   @default("edit")
+  // { fieldName: { from, to } } for every field that actually changed —
+  // e.g. { "price": { "from": "40.00", "to": "42.00" } }
+  changes  Json     @db.JsonB
+  // Set when source = 'sale' — which bill caused this quantity change.
+  relatedBillId String? @map("related_bill_id") @db.Uuid
+
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  editor Profile       @relation("ItemEditLogEditor", fields: [editedBy], references: [id], onDelete: Restrict)
+
+  @@map("inventory_edit_log")
+}
+
+/// A named person/shop this business sells to on credit or cash — strictly
+/// per-business (unlike Unit's global-catalog pattern; buyer names aren't
+/// shared vocabulary, they're business-specific entities). Phase 8 §C.
+model Buyer {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  name       String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  bills    Bill[]
+
+  @@unique([businessId, name])
+  @@map("buyers")
+}
+
+/// One sale/bill to a buyer, with one or more line items. Phase 8 §D.
+model Bill {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  buyerId    String   @map("buyer_id") @db.Uuid
+  // User-editable "sold on" date — defaults to now client-side, distinct
+  // from createdAt (when the row was actually written).
+  billDate   DateTime @map("bill_date") @db.Timestamptz
+  // Denormalized sum of line items at creation time — same "store the
+  // current value directly" style as InventoryItem.price, for cheap
+  // aggregation later (buyer totals, future dashboard).
+  total      Decimal  @db.Decimal(10, 2)
+  createdBy  String   @map("created_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  business Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  buyer    Buyer         @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  creator  Profile       @relation("BillCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  items    BillItem[]
+  payments BillPayment[]
+
+  @@map("bills")
+}
+
+/// One product line on a bill. Phase 8 §D.
+model BillItem {
+  id       String  @id @default(uuid()) @db.Uuid
+  billId   String  @map("bill_id") @db.Uuid
+  itemId   String  @map("item_id") @db.Uuid
+  quantity Int
+  // Per-unit price AT TIME OF BILLING — defaulted from the item's current
+  // price client-side, editable, never mutated after creation (a later
+  // price change on the item must not retroactively alter past bills).
+  price    Decimal @db.Decimal(10, 2)
+
+  bill Bill          @relation(fields: [billId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: once an item has ever been billed, deleting it
+  // must fail loudly instead of silently orphaning sold-item history —
+  // a deliberate behavior change from the item delete route, flagged in
+  // the Phase 8 plan.
+  item InventoryItem @relation(fields: [itemId], references: [id], onDelete: Restrict)
+
+  @@map("bill_items")
+}
+
+/// One payment against a bill — supports partial payments (multiple rows
+/// per bill); due = bill.total - sum(payments.amount). Phase 8 §D.
+model BillPayment {
+  id         String   @id @default(uuid()) @db.Uuid
+  billId     String   @map("bill_id") @db.Uuid
+  amount     Decimal  @db.Decimal(10, 2)
+  paidAt     DateTime @default(now()) @map("paid_at") @db.Timestamptz
+  recordedBy String   @map("recorded_by") @db.Uuid
+
+  bill     Bill    @relation(fields: [billId], references: [id], onDelete: Cascade)
+  recorder Profile @relation("BillPaymentRecorder", fields: [recordedBy], references: [id], onDelete: Restrict)
+
+  @@map("bill_payments")
 }
