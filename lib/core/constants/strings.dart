@@ -80,4 +80,37 @@ class Strings {
   static const unitBox = 'डिब्बा';
   static const unitBottle = 'बोतल';
   static const unitBag = 'बैग';
+
+  // Stock add (Phase 8 §B)
+  static const addStock = 'स्टॉक जोड़ें';
+  static const addStockQuantity = 'कितना स्टॉक जोड़ें';
+  static const stockAdded = 'स्टॉक जुड़ गया';
+
+  // Buyers/Billing (Phase 8 §C-§G)
+  static const bill = 'बिल';
+  static const soldTo = 'बेचा';
+  static const buyerName = 'खरीदार का नाम';
+  static const addNewBuyer = 'नया खरीदार जोड़ें';
+  static const createBuyer = 'बनाएँ';
+  static const noBuyersFound = 'कोई खरीदार नहीं मिला';
+  static const noBuyers = 'कोई खरीदार नहीं है';
+  static const addProduct = 'सामान जोड़ें';
+  static const addAnotherProduct = '+ और सामान जोड़ें';
+  static const billDate = 'तारीख़';
+  static const paid = 'भुगतान हो गया';
+  static const unpaid = 'बाकी है';
+  static const partialPayment = 'कुछ भुगतान हुआ';
+  // Suffix after an amount, e.g. "₹40 भुगतान हुआ" — distinct from
+  // partialPayment above (a standalone toggle-option label).
+  static const partialPaymentSuffix = 'भुगतान हुआ';
+  static const createBill = 'बिल बनाएँ';
+  static const totalBilled = 'कुल बिल';
+  static const totalPaid = 'कुल भुगतान';
+  static const totalDue = 'कुल बाकी';
+  static const recordPayment = 'भुगतान दर्ज करें';
+  static const paymentAmount = 'कितना भुगतान हुआ';
+  static const paymentsMade = 'भुगतान की सूची';
+  static const billedBy = 'बिल बनाया';
+  static const noBillsYet = 'अभी कोई बिल नहीं है';
+  static const duplicateBuyerName = 'यह नाम पहले से है';
 }

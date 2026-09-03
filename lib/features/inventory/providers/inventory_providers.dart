@@ -85,3 +85,17 @@ final priceHistoryProvider =
   if (business == null) return [];
   return InventoryRepository.fetchPriceHistory(businessId: business.id, itemId: itemId);
 });
+
+/// "Add stock" — pure quantity increment CTA on the item detail screen
+/// (Phase 8 §B).
+final addStockProvider =
+    FutureProvider.autoDispose.family<InventoryItem, ({String itemId, int quantity})>(
+        (ref, input) async {
+  final business = await ref.watch(currentBusinessProvider.future);
+  if (business == null) throw Exception('No business selected');
+  return InventoryRepository.addStock(
+    businessId: business.id,
+    itemId: input.itemId,
+    quantity: input.quantity,
+  );
+});

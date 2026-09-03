@@ -7,6 +7,7 @@ import '../../../core/models/price_history_point.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/absolute_time.dart';
 import '../../../core/utils/name_formatter.dart';
+import '../../../core/widgets/field_with_mic.dart';
 import '../../team/providers/team_providers.dart';
 import '../providers/inventory_providers.dart';
 import 'add_edit_item_screen.dart';
@@ -31,6 +32,65 @@ class ItemDetailScreen extends ConsumerStatefulWidget {
 class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   _PriceRange _range = _PriceRange.allTime;
   _ViewMode _viewMode = _ViewMode.chart;
+
+  /// "Add stock" CTA (Phase 8 §B) — a small bottom sheet with one numeric
+  /// FieldWithMic. Pure quantity increment; doesn't touch price. The
+  /// resulting item:updated socket event patches inventoryItemsProvider
+  /// live, same as any other edit — no manual refresh needed here.
+  Future<void> _showAddStockSheet(String itemId) async {
+    final controller = TextEditingController();
+    final quantity = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      // Without this, the sheet doesn't resize when the keyboard opens —
+      // it just gets covered, hiding the field being typed into.
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(sheetContext).viewInsets.bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(Strings.addStock, style: Theme.of(sheetContext).textTheme.titleMedium),
+              const SizedBox(height: 16),
+              FieldWithMic(
+                label: Strings.addStockQuantity,
+                controller: controller,
+                keyboardType: TextInputType.number,
+                isNumeric: true,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  final value = int.tryParse(controller.text.trim());
+                  Navigator.of(sheetContext).pop(value);
+                },
+                child: Text(Strings.addStock),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (quantity == null || quantity <= 0) return;
+    try {
+      await ref.read(addStockProvider((itemId: itemId, quantity: quantity)).future);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(Strings.stockAdded)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +141,12 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _DetailCard(item: item, editorName: editorName),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => _showAddStockSheet(item.id),
+              icon: const Icon(Icons.add_box, size: 22),
+              label: Text(Strings.addStock),
+            ),
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

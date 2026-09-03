@@ -57,7 +57,17 @@ function roomFor(businessId: string) {
   return `business:${businessId}`;
 }
 
-/** Emit an event to everyone currently viewing this business (called from REST route handlers after a successful write). */
+/**
+ * Emit an event to everyone currently viewing this business (called from
+ * REST route handlers after a successful write).
+ *
+ * No-ops if sockets were never initialized — true in the test suite
+ * (Phase 8 §H), which drives the Express app directly via Supertest and
+ * never calls initSockets(). Without this guard, every route that emits
+ * would crash on a real write succeeding, just because nothing is
+ * listening for the live-update side channel.
+ */
 export function emitToBusiness(businessId: string, event: string, payload: unknown) {
+  if (!io) return;
   io.to(roomFor(businessId)).emit(event, payload);
 }
