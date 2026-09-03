@@ -32,9 +32,15 @@ final createBillProvider =
     markPaidNow: input.markPaidNow,
   );
 
-  // A new bill changes stock (item quantities) and the buyer's totals —
-  // refresh both rather than waiting for the next natural refetch.
+  // A new bill changes stock (handled live via the item:updated socket
+  // event), the buyer's totals, and that buyer's bill history — every
+  // read touching this data must refetch, not show whatever was cached
+  // before the write. Invalidating the whole family (no specific
+  // buyerId) covers every buyer's detail/bill-history screen that might
+  // currently be cached, not just the one just billed.
   ref.invalidate(buyersProvider);
+  ref.invalidate(buyerDetailProvider);
+  ref.invalidate(billsForBuyerProvider);
   return bill;
 });
 
@@ -89,5 +95,13 @@ final addPaymentProvider =
     billId: input.billId,
     amount: input.amount,
   );
+  // A payment changes this bill's own paid/due (billDetailProvider), the
+  // buyer's totalPaid/totalDue (buyerDetailProvider), and that bill's
+  // paid/unpaid status in the buyer's bill-history list
+  // (billsForBuyerProvider) — this was the exact bug reported: going
+  // back to the buyer page after recording a payment showed the old
+  // total until a second, unrelated navigation forced a refetch.
   ref.invalidate(billDetailProvider(input.billId));
+  ref.invalidate(buyerDetailProvider);
+  ref.invalidate(billsForBuyerProvider);
 });

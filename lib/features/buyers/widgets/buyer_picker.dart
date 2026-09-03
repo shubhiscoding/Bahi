@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
 import '../../../core/models/buyer.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/utils/search_match.dart';
+import '../../../core/widgets/field_with_mic.dart';
 import '../../../core/widgets/mic_search_field.dart';
 import '../providers/buyer_providers.dart';
 
@@ -92,7 +94,7 @@ class _BuyerPickerState extends ConsumerState<BuyerPicker> {
             final filtered = _searchQuery.isEmpty
                 ? buyers
                 : buyers
-                    .where((b) => b.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+                    .where((b) => matchesSearch(b.name, _searchQuery))
                     .toList();
             final showNoResults = filtered.isEmpty && _searchQuery.isNotEmpty;
 
@@ -318,10 +320,10 @@ class _AddBuyerDialogState extends ConsumerState<_AddBuyerDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
+          FieldWithMic(
+            label: Strings.buyerName,
             controller: _nameController,
-            autofocus: true,
-            decoration: InputDecoration(hintText: Strings.buyerName),
+            keyboardType: TextInputType.text,
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),

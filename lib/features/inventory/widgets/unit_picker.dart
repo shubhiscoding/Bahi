@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/voice_service.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/utils/search_match.dart';
 import '../../../core/widgets/mic_search_field.dart';
 import '../providers/unit_providers.dart';
 
@@ -115,7 +116,7 @@ class _UnitPickerState extends ConsumerState<UnitPicker> {
             final filtered = _searchQuery.isEmpty
                 ? units.take(maxWithoutSearch).toList()
                 : units
-                    .where((u) => u.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+                    .where((u) => matchesSearch(u.name, _searchQuery))
                     .toList();
 
             return Wrap(
