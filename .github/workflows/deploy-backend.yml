@@ -37,9 +37,15 @@ jobs:
             PORT="${{ secrets.PORT }}"
             EOF
 
+            # Hard reset instead of checkout+pull — EC2 is a pure deploy
+            # target, never somewhere with organic local changes. A prior
+            # `npm install` run here left package-lock.json drifted from
+            # origin, which blocked a plain `git pull` (fast-forward
+            # refused with a dirty working tree). git is the source of
+            # truth; discard anything local and match origin exactly.
             git fetch origin
             git checkout ${{ github.event.inputs.branch }}
-            git pull origin ${{ github.event.inputs.branch }}
+            git reset --hard origin/${{ github.event.inputs.branch }}
             npm install
             npm run build
             pm2 restart bahi-backend
