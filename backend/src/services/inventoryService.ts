@@ -48,7 +48,7 @@ export const inventoryService = {
 
     // Seed the price history with the starting price (Phase 7 §A).
     await prisma.inventoryPriceHistory.create({
-      data: { itemId: item.id, price: item.price },
+      data: { itemId: item.id, price: item.price, editedBy: updatedBy },
     });
     await touchUnitLastUsed(businessId, input.unit);
 
@@ -74,7 +74,7 @@ export const inventoryService = {
     // confirmed decision, not on every save (Phase 7 §A).
     if (existing && Number(existing.price) !== Number(item.price)) {
       await prisma.inventoryPriceHistory.create({
-        data: { itemId: item.id, price: item.price },
+        data: { itemId: item.id, price: item.price, editedBy: updatedBy },
       });
     }
     await touchUnitLastUsed(item.businessId, input.unit);
@@ -91,9 +91,21 @@ export const inventoryService = {
   },
 
   async priceHistory(itemId: string) {
-    return prisma.inventoryPriceHistory.findMany({
+    const rows = await prisma.inventoryPriceHistory.findMany({
       where: { itemId },
+      include: { editor: true },
       orderBy: { recordedAt: 'asc' },
     });
+
+    // Flatten the join (same pattern as businessService.listMembers) —
+    // editedBy/editor are null on rows written before this column existed
+    // (no backfill), so editedByName falls back to null, not an error.
+    return rows.map((r) => ({
+      id: r.id,
+      price: r.price,
+      recordedAt: r.recordedAt,
+      editedBy: r.editedBy,
+      editedByName: r.editor?.fullName ?? null,
+    }));
   },
 };

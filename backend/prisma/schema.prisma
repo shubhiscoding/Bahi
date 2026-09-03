@@ -26,6 +26,7 @@ model Profile {
   editedItems        InventoryItem[] @relation("ItemEditor")
   inviteCodesUsed    InviteCode[]    @relation("InviteCodeUsedBy")
   inviteCodesCreated InviteCode[]    @relation("InviteCodeCreatedBy")
+  priceHistoryEdits  InventoryPriceHistory[] @relation("PriceHistoryEditor")
 
   @@map("profiles")
 }
@@ -137,8 +138,16 @@ model InventoryPriceHistory {
   itemId     String   @map("item_id") @db.Uuid
   price      Decimal  @db.Decimal(10, 2)
   recordedAt DateTime @default(now()) @map("recorded_at") @db.Timestamptz
+  // Who made the change that produced this price point. Nullable — rows
+  // written before this column existed have no value, no backfill
+  // (matches this project's established "new writes only" precedent for
+  // additive columns). SetNull rather than Restrict/Cascade since a
+  // profile could in principle be removed without needing to touch old
+  // history rows.
+  editedBy   String?  @map("edited_by") @db.Uuid
 
-  item InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  editor Profile?      @relation("PriceHistoryEditor", fields: [editedBy], references: [id], onDelete: SetNull)
 
   @@map("inventory_price_history")
 }

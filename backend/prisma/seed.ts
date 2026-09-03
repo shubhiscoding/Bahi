@@ -189,12 +189,15 @@ async function main() {
         });
 
     // Replace price history each run so re-seeding stays consistent.
+    // Alternates owner/member as editor so the history list has more
+    // than one name to actually exercise the "edited by" column.
     await prisma.inventoryPriceHistory.deleteMany({ where: { itemId: item.id } });
     await prisma.inventoryPriceHistory.createMany({
-      data: def.history.map((h) => ({
+      data: def.history.map((h, i) => ({
         itemId: item.id,
         price: h.price,
         recordedAt: daysAgo(h.daysAgo),
+        editedBy: i % 2 === 0 ? owner.id : member.id,
       })),
     });
   }
