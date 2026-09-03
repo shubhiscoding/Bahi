@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
 import '../../../core/services/update_service.dart';
@@ -20,6 +23,7 @@ class AppShellScreen extends ConsumerStatefulWidget {
 
 class _AppShellScreenState extends ConsumerState<AppShellScreen> {
   int _selectedTab = 0;
+  StreamSubscription<DownloadStatusEvent>? _downloadSub;
 
   @override
   void initState() {
@@ -27,6 +31,50 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     // Check for updates automatically on launch (silent — no dialog if
     // there's nothing new), per the confirmed update UX decision.
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdate(silent: true));
+  }
+
+  @override
+  void dispose() {
+    _downloadSub?.cancel();
+    super.dispose();
+  }
+
+  /// Starts (or retries) the download and watches its status — enqueue()
+  /// only confirms the job was scheduled, not that it ever finishes. On
+  /// a device where Android reports storage as low, WorkManager can
+  /// cancel the job outright with nothing surfaced unless this is
+  /// watched (see UpdateService.downloadUpdate's requiresStorageNotLow
+  /// comment for the underlying fix; this is the "tell the user, offer
+  /// a retry" half of it).
+  Future<void> _startDownload(String url) async {
+    final taskId = await UpdateService.downloadUpdate(url);
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(Strings.downloadingUpdate)),
+    );
+
+    _downloadSub?.cancel();
+    _downloadSub = UpdateService.statusStream
+        .where((e) => e.taskId == taskId)
+        .listen((event) {
+      if (!mounted) return;
+      if (event.status == DownloadTaskStatus.failed ||
+          event.status == DownloadTaskStatus.canceled) {
+        _downloadSub?.cancel();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('अपडेट डाउनलोड नहीं हो सका।'),
+            action: SnackBarAction(
+              label: Strings.tryAgain,
+              onPressed: () => _startDownload(url),
+            ),
+          ),
+        );
+      } else if (event.status == DownloadTaskStatus.complete) {
+        _downloadSub?.cancel();
+      }
+    });
   }
 
   Future<void> _checkForUpdate({required bool silent}) async {
@@ -57,12 +105,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
             onPressed: () async {
               Navigator.of(dialogContext).pop();
               try {
-                await UpdateService.downloadUpdate(update.downloadUrl);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(Strings.downloadingUpdate)),
-                  );
-                }
+                await _startDownload(update.downloadUrl);
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(

@@ -3,6 +3,7 @@ import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inditrans/inditrans.dart' as inditrans;
 import 'core/services/supabase_client.dart';
+import 'core/services/update_service.dart';
 import 'core/theme/theme.dart';
 import 'core/navigation/app_router.dart';
 
@@ -14,6 +15,10 @@ void main() async {
 
   // Initialize the downloader used for in-app update APKs (plan §O/§8)
   await FlutterDownloader.initialize();
+  // Registers the background-isolate status/progress callback so a
+  // failed/canceled download can actually be detected and surfaced
+  // in-app instead of silently going nowhere.
+  UpdateService.initDownloadListener();
 
   // Initialize Devanagari<->Latin romanization for cross-script search
   // matching (plan §E). Fails open — search_match.dart falls back to
