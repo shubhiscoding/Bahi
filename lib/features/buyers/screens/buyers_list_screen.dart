@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
 import '../../../core/models/buyer.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/utils/search_match.dart';
 import '../../../core/widgets/mic_search_field.dart';
 import '../providers/buyer_providers.dart';
 import 'add_bill_screen.dart';
@@ -51,7 +52,7 @@ class _BuyersListScreenState extends ConsumerState<BuyersListScreen> {
               data: (buyers) {
                 final filtered = _searchQuery.isEmpty
                     ? buyers
-                    : buyers.where((b) => b.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+                    : buyers.where((b) => matchesSearch(b.name, _searchQuery)).toList();
 
                 if (buyers.isEmpty) return _emptyState();
                 if (filtered.isEmpty) return _noSearchResultsState();

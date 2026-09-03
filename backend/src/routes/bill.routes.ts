@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { requireMembership } from '../middleware/businessAccess';
 import { billService } from '../services/billService';
+import { inventoryService } from '../services/inventoryService';
 import { prisma } from '../prisma';
 import { emitToBusiness } from '../sockets';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -67,8 +68,17 @@ billRoutes.post(
     });
 
     emitToBusiness(businessId, 'bill:created', bill);
+    // Emit the FULL item, not just its id — the Flutter socket handler
+    // (InventoryRepository.onUpdated) parses whatever payload arrives
+    // straight into a full InventoryItem via fromJson, defaulting every
+    // missing field (name '', price 0, quantity 0, unit 'piece') and
+    // overwriting the real item in the live list with that blank stub.
+    // This was a real bug, not a display filter — negative quantity
+    // itself is allowed (billing more than stock, by design); only a
+    // partial payload was the problem.
     for (const itemId of itemIds) {
-      emitToBusiness(businessId, 'item:updated', { id: itemId });
+      const item = await inventoryService.getById(itemId);
+      if (item) emitToBusiness(businessId, 'item:updated', item);
     }
     res.status(201).json(bill);
   }),

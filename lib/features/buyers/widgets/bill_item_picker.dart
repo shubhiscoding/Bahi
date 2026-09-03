@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/inventory_item.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/utils/search_match.dart';
 import '../../../core/widgets/mic_search_field.dart';
 import '../../inventory/providers/inventory_providers.dart';
 
@@ -66,7 +67,7 @@ class _BillItemPickerState extends ConsumerState<BillItemPicker> {
             final filtered = _searchQuery.isEmpty
                 ? available.toList()
                 : available
-                    .where((i) => i.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+                    .where((i) => matchesSearch(i.name, _searchQuery))
                     .toList();
 
             if (filtered.isEmpty) {

@@ -1,7 +1,15 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import request from 'supertest';
-import { app, authHeader, makeTestBusiness, makeTestItem } from './helpers';
 import { prisma } from '../src/prisma';
+
+// Spy on emitToBusiness to catch the exact regression this test guards:
+// billing used to broadcast item:updated with only { id }, which the
+// Flutter client parses straight into a full InventoryItem, defaulting
+// every missing field and blanking out the real item in the live list.
+const emitSpy = vi.fn();
+vi.mock('../src/sockets', () => ({ emitToBusiness: (...args: unknown[]) => emitSpy(...args) }));
+
+const { app, authHeader, makeTestBusiness, makeTestItem } = await import('./helpers');
 
 describe('bills', () => {
   let businessId: string;
@@ -117,6 +125,18 @@ describe('bills', () => {
       expect(logA.body).toHaveLength(1);
       expect(logA.body[0].source).toBe('sale');
       expect(logA.body[0].relatedBillId).toBe(res.body.id);
+
+      // The regression this guards: item:updated must carry the FULL
+      // item (name/price/unit intact), not just { id } — a partial
+      // payload gets parsed straight into a blank InventoryItem
+      // client-side and overwrites the real item in the live list.
+      const itemUpdateCallA = emitSpy.mock.calls.find(
+        (call) => call[1] === 'item:updated' && call[2]?.id === itemA.id,
+      );
+      expect(itemUpdateCallA).toBeTruthy();
+      expect(itemUpdateCallA![2].name).toBe('A');
+      expect(Number(itemUpdateCallA![2].price)).toBe(10);
+      expect(itemUpdateCallA![2].quantity).toBe(45);
     });
 
     it('billing more than current stock is allowed (goes negative — no hard block)', async () => {

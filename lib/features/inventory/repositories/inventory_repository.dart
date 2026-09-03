@@ -54,15 +54,36 @@ class InventoryRepository {
     void recache() =>
         LocalCacheService.set(_cacheKey(businessId), current.map((i) => i.toJson()).toList());
 
+    // Defense-in-depth: a socket payload missing the fields a real item
+    // always has (name/unit) is a sign something upstream sent a partial
+    // object (this exact bug happened once — a bill-creation route that
+    // emitted { id } only, which fromJson happily defaulted into a
+    // blank "no name, 0 qty, 0 price" item that overwrote the real one).
+    // Never trust a partial patch — fall back to a full refetch instead,
+    // so a malformed event degrades to "one extra REST call" rather than
+    // "silently corrupt what the user sees".
+    bool looksComplete(Map<String, dynamic> json) =>
+        (json['name'] as String?)?.isNotEmpty == true && json['unit'] != null;
+
     void onCreated(dynamic data) {
-      final item = InventoryItem.fromJson(Map<String, dynamic>.from(data));
+      final json = Map<String, dynamic>.from(data);
+      if (!looksComplete(json)) {
+        loadInitial();
+        return;
+      }
+      final item = InventoryItem.fromJson(json);
       current = [...current, item]..sort((a, b) => a.name.compareTo(b.name));
       emit();
       recache();
     }
 
     void onUpdated(dynamic data) {
-      final item = InventoryItem.fromJson(Map<String, dynamic>.from(data));
+      final json = Map<String, dynamic>.from(data);
+      if (!looksComplete(json)) {
+        loadInitial();
+        return;
+      }
+      final item = InventoryItem.fromJson(json);
       current = current.map((i) => i.id == item.id ? item : i).toList()
         ..sort((a, b) => a.name.compareTo(b.name));
       emit();
