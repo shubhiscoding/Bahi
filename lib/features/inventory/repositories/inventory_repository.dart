@@ -159,9 +159,20 @@ class InventoryRepository {
     required String businessId,
     required String itemId,
   }) async {
-    final response =
-        await ApiClient.instance.get('/businesses/$businessId/items/$itemId/price-history');
-    return (response.data as List).map((p) => PriceHistoryPoint.fromJson(p)).toList();
+    return LocalCacheService.fetchListWithFallback<PriceHistoryPoint>(
+      key: 'priceHistory:$businessId:$itemId',
+      fetch: () async {
+        final response =
+            await ApiClient.instance.get('/businesses/$businessId/items/$itemId/price-history');
+        return (response.data as List).map((p) => PriceHistoryPoint.fromJson(p)).toList();
+      },
+      toJson: (p) => {
+        'price': p.price,
+        'recordedAt': p.recordedAt.toIso8601String(),
+        'editedByName': p.editedByName,
+      },
+      fromJson: PriceHistoryPoint.fromJson,
+    );
   }
 
   /// "Add stock" — pure quantity increment, doesn't touch price

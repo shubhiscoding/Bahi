@@ -5,6 +5,7 @@ import '../../../core/models/bill.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/absolute_time.dart';
 import '../../../core/utils/name_formatter.dart';
+import '../../../core/utils/offline_guard.dart';
 import '../providers/bill_providers.dart';
 import '../widgets/amount_input_sheet.dart';
 
@@ -26,6 +27,7 @@ class BillDetailScreen extends ConsumerWidget {
     );
 
     if (amount == null || amount <= 0) return;
+    if (!await ensureOnline(context)) return;
     try {
       await ref.read(addPaymentProvider((billId: billId, amount: amount)).future);
       ref.invalidate(billsForBuyerProvider);

@@ -51,6 +51,10 @@ class Strings {
   // Offline & connectivity
   static const connectToInternet = 'इंटरनेट से जुड़ें';
   static const noInternet = 'इंटरनेट नहीं है';
+  // Persistent banner (Phase 12 §E) — distinct from noInternet, which
+  // pairs with a full-screen block; this pairs with a thin strip over
+  // otherwise-normal cached data, so it explains *why* offline data.
+  static const offlineShowingOldData = 'इंटरनेट नहीं है — पुराना डेटा दिख रहा है';
   static const downloadingUpdate = 'अपडेट डाउनलोड हो रहा है...';
   static const updateReady = 'अपडेट तैयार है';
   static const tapToInstall = 'इंस्टॉल करने के लिए टैप करें';
