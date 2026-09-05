@@ -87,7 +87,7 @@ describe('inventory items', () => {
       const res = await request(app)
         .put(`/businesses/${businessId}/items/${item.id}`)
         .set('Authorization', authHeader(ownerId))
-        .send({ name: item.name, price: -1, quantity: item.quantity, unit: item.unit });
+        .send({ price: -1, quantity: item.quantity, unit: item.unit });
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('INVALID_PRICE');
     });
@@ -97,7 +97,7 @@ describe('inventory items', () => {
       await request(app)
         .put(`/businesses/${businessId}/items/${item.id}`)
         .set('Authorization', authHeader(ownerId))
-        .send({ name: item.name, price: Number(item.price), quantity: item.quantity, unit: item.unit });
+        .send({ price: Number(item.price), quantity: item.quantity, unit: item.unit });
 
       const log = await request(app)
         .get(`/businesses/${businessId}/items/${item.id}/edit-log`)
@@ -105,20 +105,20 @@ describe('inventory items', () => {
       expect(log.body).toHaveLength(0);
     });
 
-    it('changing name+price writes one edit-log row with both diffs, and one price-history point', async () => {
+    it('changing price writes one edit-log row and one price-history point', async () => {
       const item = await makeTestItem(businessId, ownerId, { name: 'नमक', price: 20 });
       await request(app)
         .put(`/businesses/${businessId}/items/${item.id}`)
         .set('Authorization', authHeader(ownerId))
-        .send({ name: 'सेंधा नमक', price: 25, quantity: item.quantity, unit: item.unit });
+        .send({ price: 25, quantity: item.quantity, unit: item.unit });
 
       const log = await request(app)
         .get(`/businesses/${businessId}/items/${item.id}/edit-log`)
         .set('Authorization', authHeader(ownerId));
       expect(log.body).toHaveLength(1);
       expect(log.body[0].source).toBe('edit');
-      expect(log.body[0].changes.name).toEqual({ from: 'नमक', to: 'सेंधा नमक' });
       expect(log.body[0].changes.price).toBeTruthy();
+      expect(log.body[0].changes.name).toBeUndefined();
 
       const history = await request(app)
         .get(`/businesses/${businessId}/items/${item.id}/price-history`)
@@ -126,12 +126,31 @@ describe('inventory items', () => {
       expect(history.body).toHaveLength(2); // seed + this change
     });
 
+    // Name is set once at creation and intentionally not editable
+    // afterward (confirmed decision) — this asserts the removal actually
+    // holds at the API level, not just that the UI hides the field.
+    it('ignores a name sent on update — name never changes via PUT', async () => {
+      const item = await makeTestItem(businessId, ownerId, { name: 'नमक' });
+      const res = await request(app)
+        .put(`/businesses/${businessId}/items/${item.id}`)
+        .set('Authorization', authHeader(ownerId))
+        .send({ name: 'सेंधा नमक', price: Number(item.price), quantity: item.quantity, unit: item.unit });
+
+      expect(res.status).toBe(200);
+      expect(res.body.name).toBe('नमक');
+
+      const log = await request(app)
+        .get(`/businesses/${businessId}/items/${item.id}/edit-log`)
+        .set('Authorization', authHeader(ownerId));
+      expect(log.body).toHaveLength(0); // nothing actually changed
+    });
+
     it('changing only quantity does NOT write a price-history row', async () => {
       const item = await makeTestItem(businessId, ownerId, { quantity: 5 });
       await request(app)
         .put(`/businesses/${businessId}/items/${item.id}`)
         .set('Authorization', authHeader(ownerId))
-        .send({ name: item.name, price: Number(item.price), quantity: 50, unit: item.unit });
+        .send({ price: Number(item.price), quantity: 50, unit: item.unit });
 
       const history = await request(app)
         .get(`/businesses/${businessId}/items/${item.id}/price-history`)
@@ -146,7 +165,7 @@ describe('inventory items', () => {
       const res = await request(app)
         .put(`/businesses/${businessId}/items/${otherItem.id}`)
         .set('Authorization', authHeader(ownerId))
-        .send({ name: 'hijack', price: 1, quantity: 1, unit: 'piece' });
+        .send({ price: 1, quantity: 1, unit: 'piece' });
       expect(res.status).toBe(404);
     });
   });

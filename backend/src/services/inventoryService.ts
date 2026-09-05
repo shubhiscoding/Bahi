@@ -8,6 +8,16 @@ export interface ItemInput {
   unit: string;
 }
 
+/// An item's name is set once at creation and is intentionally not
+/// editable afterward (confirmed decision) — update() takes this
+/// narrower shape so there is no `name` field to even accidentally wire
+/// up here, not just a UI omission.
+export interface ItemUpdateInput {
+  price: number;
+  quantity: number;
+  unit: string;
+}
+
 /**
  * Touches BusinessUnit.lastUsedAt for the given unit name, if it's linked
  * to this business — drives the unit picker's recency sort (Phase 7 §C).
@@ -32,13 +42,10 @@ type Changes = Record<string, { from: unknown; to: unknown }>;
  * (nothing changed), in which case the caller writes no log row at all.
  */
 function diffItemFields(
-  existing: { name: string; price: unknown; quantity: number; unit: string },
-  input: ItemInput,
+  existing: { price: unknown; quantity: number; unit: string },
+  input: ItemUpdateInput,
 ): Changes {
   const changes: Changes = {};
-  if (existing.name !== input.name) {
-    changes.name = { from: existing.name, to: input.name };
-  }
   if (Number(existing.price) !== Number(input.price)) {
     changes.price = { from: existing.price, to: input.price };
   }
@@ -84,13 +91,16 @@ export const inventoryService = {
     return item;
   },
 
-  async update(itemId: string, updatedBy: string, input: ItemInput) {
+  async update(itemId: string, updatedBy: string, input: ItemUpdateInput) {
     const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
 
+    // Name is intentionally omitted here — set once at creation, never
+    // editable afterward (confirmed decision). Not just a UI-level
+    // omission: this method's own input type has no `name` field, so
+    // there is nothing for even a direct API call to change it with.
     const item = await prisma.inventoryItem.update({
       where: { id: itemId },
       data: {
-        name: input.name,
         price: input.price,
         quantity: input.quantity,
         unit: input.unit,

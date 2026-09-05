@@ -65,14 +65,19 @@ inventoryRoutes.post(
   }),
 );
 
+// Name is set once at creation and intentionally not editable afterward
+// (confirmed decision) — this route no longer reads/accepts `name` at
+// all, so even a direct API call (not just the UI) can't change it.
+// Any `name` sent in the body is silently ignored, not rejected — a
+// stale client sending its old unchanged value shouldn't hard-fail.
 inventoryRoutes.put(
   '/:itemId',
   requireMembership,
   requireItemInBusiness,
   asyncHandler(async (req, res) => {
-    const { name, price, quantity, unit } = req.body;
-    if (!name?.trim() || price == null || quantity == null || !unit?.trim()) {
-      return res.status(400).json({ error: 'name, price, quantity, unit are required' });
+    const { price, quantity, unit } = req.body;
+    if (price == null || quantity == null || !unit?.trim()) {
+      return res.status(400).json({ error: 'price, quantity, unit are required' });
     }
     if (!isFiniteNonNegativeNumber(price)) {
       return res.status(400).json({ error: 'INVALID_PRICE' });
@@ -82,7 +87,6 @@ inventoryRoutes.put(
     }
 
     const item = await inventoryService.update(req.params.itemId, req.user!.id, {
-      name: name.trim(),
       price: Number(price),
       quantity: Number(quantity),
       unit: unit.trim(),
