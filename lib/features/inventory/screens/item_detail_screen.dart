@@ -37,6 +37,12 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   /// FieldWithMic. Pure quantity increment; doesn't touch price. The
   /// resulting item:updated socket event patches inventoryItemsProvider
   /// live, same as any other edit — no manual refresh needed here.
+  ///
+  /// Phase 13: its only call site (the CTA button below) is commented
+  /// out — quantity/stock isn't shown in this version — but the method
+  /// itself is left intact and functional so restoring it later is just
+  /// uncommenting the button, not rebuilding this.
+  // ignore: unused_element
   Future<void> _showAddStockSheet(String itemId) async {
     final controller = TextEditingController();
     final quantity = await showModalBottomSheet<int>(
@@ -142,11 +148,15 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
           children: [
             _DetailCard(item: item, editorName: editorName),
             const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => _showAddStockSheet(item.id),
-              icon: const Icon(Icons.add_box, size: 22),
-              label: Text(Strings.addStock),
-            ),
+            // Phase 13: quantity/stock hidden from the UI for launch —
+            // no add-stock CTA shown, though _showAddStockSheet/
+            // addStockProvider/the backend route are all left intact
+            // underneath (uncommenting this is the full revert later).
+            // OutlinedButton.icon(
+            //   onPressed: () => _showAddStockSheet(item.id),
+            //   icon: const Icon(Icons.add_box, size: 22),
+            //   label: Text(Strings.addStock),
+            // ),
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -239,8 +249,10 @@ class _DetailCard extends StatelessWidget {
                     ),
               ),
               const SizedBox(width: 12),
+              // Phase 13: quantity/stock hidden from the UI for launch —
+              // was '${item.quantity} ${item.unit}'.
               Text(
-                '${item.quantity} ${item.unit}',
+                item.unit,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: AppColors.inkSoft,
                     ),

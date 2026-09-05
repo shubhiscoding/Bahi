@@ -193,8 +193,10 @@ class _ItemCard extends ConsumerWidget {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 4),
+                    // Phase 13: quantity/stock hidden from the UI for
+                    // launch — was '${item.quantity} ${item.unit}  •  ...'.
                     Text(
-                      '${item.quantity} ${item.unit}  •  ₹${item.price.toStringAsFixed(0)}',
+                      '${item.unit}  •  ₹${item.price.toStringAsFixed(0)}',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: AppColors.inkSoft,
                           ),
