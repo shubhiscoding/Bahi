@@ -26,7 +26,11 @@ class AddEditItemScreen extends ConsumerStatefulWidget {
 class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
   late TextEditingController _nameController;
   late TextEditingController _priceController;
-  late TextEditingController _quantityController;
+  // Phase 13: quantity/stock hidden from the UI for launch (kept, not
+  // deleted — the field/controller/backend all still exist underneath,
+  // this is purely commented out so it's a quick revert later). No
+  // screen reads or writes this controller's text anymore.
+  // late TextEditingController _quantityController;
   late String _selectedUnit;
   bool _isSaving = false;
 
@@ -39,9 +43,9 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
     _priceController = TextEditingController(
       text: widget.item != null ? widget.item!.price.toStringAsFixed(0) : '',
     );
-    _quantityController = TextEditingController(
-      text: widget.item?.quantity.toString() ?? '',
-    );
+    // _quantityController = TextEditingController(
+    //   text: widget.item?.quantity.toString() ?? '',
+    // );
     _selectedUnit = widget.item?.unit ?? '';
   }
 
@@ -49,7 +53,7 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
   void dispose() {
     _nameController.dispose();
     _priceController.dispose();
-    _quantityController.dispose();
+    // _quantityController.dispose();
     super.dispose();
   }
 
@@ -64,9 +68,8 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
     // not the only thing enforcing it).
     final name = isEditing ? widget.item!.name : _nameController.text.trim();
     final priceText = _priceController.text.trim();
-    final quantityText = _quantityController.text.trim();
 
-    if (name.isEmpty || priceText.isEmpty || quantityText.isEmpty || _selectedUnit.isEmpty) {
+    if (name.isEmpty || priceText.isEmpty || _selectedUnit.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('सारी जानकारी भरें')),
       );
@@ -74,13 +77,20 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
     }
 
     final price = double.tryParse(priceText);
-    final quantity = int.tryParse(quantityText);
-    if (price == null || quantity == null) {
+    if (price == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('सही नंबर डालें')),
       );
       return;
     }
+
+    // Phase 13: quantity/stock isn't tracked or shown this version — a
+    // new item always starts at 0 (backend still requires a value on
+    // create); editing an item forwards its real existing quantity
+    // through unchanged (never resets an already-billed item's actual
+    // stock to 0), same "hide in UI, keep enforcing underneath" pattern
+    // already used for name's immutability.
+    final quantity = isEditing ? widget.item!.quantity : 0;
 
     setState(() => _isSaving = true);
 
@@ -206,14 +216,16 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
                 ),
               const SizedBox(height: 20),
 
-              // Quantity field
-              FieldWithMic(
-                label: Strings.itemQuantity,
-                controller: _quantityController,
-                keyboardType: TextInputType.number,
-                isNumeric: true,
-              ),
-              const SizedBox(height: 20),
+              // Phase 13: quantity/stock hidden from the UI for launch —
+              // commented out, not removed (backend/provider/repo all
+              // still work underneath; this is a quick revert later).
+              // FieldWithMic(
+              //   label: Strings.itemQuantity,
+              //   controller: _quantityController,
+              //   keyboardType: TextInputType.number,
+              //   isNumeric: true,
+              // ),
+              // const SizedBox(height: 20),
 
               // Price field
               FieldWithMic(
