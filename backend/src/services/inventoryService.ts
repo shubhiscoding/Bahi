@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 
 export interface ItemInput {
@@ -157,8 +157,24 @@ export const inventoryService = {
     return item;
   },
 
+  /**
+   * BillItem.item is onDelete: Restrict (deliberate — protects sale
+   * history), so Postgres rejects this delete with FK error P2003 once
+   * an item has ever been billed. Without catching it specifically here,
+   * that error fell through to app.ts's generic 500 handler and the
+   * Flutter client showed a raw, meaningless message instead of a real
+   * "this item has been billed and can't be deleted" — the exact bug
+   * reported after this route shipped.
+   */
   async delete(itemId: string) {
-    await prisma.inventoryItem.delete({ where: { id: itemId } });
+    try {
+      await prisma.inventoryItem.delete({ where: { id: itemId } });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+        throw new Error('ITEM_HAS_BILLS');
+      }
+      throw e;
+    }
   },
 
   async getById(itemId: string) {

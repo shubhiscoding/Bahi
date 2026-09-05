@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
@@ -130,9 +131,17 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
       await ref.read(deleteItemProvider(widget.item!.id).future);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
+      // Backend maps the onDelete: Restrict FK failure (item has been
+      // billed before) to 409 { error: 'ITEM_HAS_BILLS' } specifically
+      // so this can show a real sentence instead of a raw/opaque error
+      // — the exact bug reported after this screen shipped.
+      final isItemHasBills =
+          e is DioException && e.response?.data?['error'] == 'ITEM_HAS_BILLS';
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+          SnackBar(
+            content: Text(isItemHasBills ? Strings.itemHasBills : 'त्रुटि: ${e.toString()}'),
+          ),
         );
       }
     }

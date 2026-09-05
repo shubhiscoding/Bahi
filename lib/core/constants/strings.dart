@@ -120,6 +120,11 @@ class Strings {
   static const noBillsYet = 'अभी कोई बिल नहीं है';
   static const duplicateBuyerName = 'यह नाम पहले से है';
 
+  // Delete-item error (Phase 12 follow-up) — an item that's ever been
+  // billed can't be deleted (protects sale history); previously surfaced
+  // as a raw/opaque backend error instead of this plain sentence.
+  static const itemHasBills = 'यह सामान बिल में इस्तेमाल हुआ है, हटाया नहीं जा सकता';
+
   // Deposits (Phase 10)
   static const deposits = 'जमा';
   static const noDepositsYet = 'अभी कोई जमा नहीं है';
