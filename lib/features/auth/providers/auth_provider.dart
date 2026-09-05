@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supa;
 import '../../../core/models/user.dart';
 import '../../../core/services/api_client.dart';
+import '../../../core/services/local_cache_service.dart';
 import '../../../core/services/socket_service.dart';
 import '../../../core/services/supabase_client.dart';
 import '../../business/providers/business_providers.dart';
@@ -83,10 +84,27 @@ final signOutProvider = FutureProvider.autoDispose<void>((ref) async {
 /// should surface as a retryable error, not get permanently miscached as
 /// "this user has no profile" (which is exactly what caused a business
 /// owner to be wrongly shown Create/Join again after logging back in).
+///
+/// Phase 12 follow-up: this was the actual cause of "कुछ गलत हुआ" on a
+/// fully offline cold-start (already-signed-in user) — this call sits in
+/// AppRouter BEFORE currentBusinessProvider (which already has a cache
+/// fallback), so it failed and blocked the router before that fix ever
+/// got a chance to run. Cache key is scoped to the signed-in user's own
+/// id (not a shared/global key) — this app can be used on a shared
+/// device by different accounts (see signOutProvider's comment above),
+/// so a second user's offline first-ever launch must NOT fall back to
+/// whatever a previous user's profile happened to be cached as.
 final currentUserProfileProvider = FutureProvider<User?>((ref) async {
   final authState = ref.watch(authSessionProvider).valueOrNull;
   if (authState == null || !authState.isAuthenticated) return null;
 
-  final response = await ApiClient.instance.post('/auth/sync');
-  return User.fromJson(response.data);
+  return LocalCacheService.fetchWithFallback<User>(
+    key: 'profile:${authState.user!.id}',
+    fetch: () async {
+      final response = await ApiClient.instance.post('/auth/sync');
+      return User.fromJson(response.data);
+    },
+    toJson: (u) => u.toJson(),
+    fromJson: User.fromJson,
+  );
 });
