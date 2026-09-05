@@ -14,14 +14,33 @@ import '../widgets/buyer_picker.dart';
 
 enum _PaymentChoice { unpaid, partial, paid }
 
+/// A product line's UI state (revised — was a single isExpanded bool):
+/// - [picking]: item search/list showing, no qty/price yet.
+/// - [editing]: item chosen, its name shown as a compact tappable header
+///   (tap to reopen the picker and change it) with qty/price fields
+///   below, fully editable — this is the "currently being added" state.
+/// - [summary]: fully collapsed to one compact read-only row (name, qty,
+///   price) — only entered once "add more" moves a completed line out
+///   of the way, or another line is reopened for editing. Tap to return
+///   to [editing].
+enum _LineMode { picking, editing, summary }
+
 /// One product line on the bill-creation form (Phase 8 §F, revised).
-/// isExpanded controls whether the item picker (search+list) is showing
-/// or the line has collapsed to a compact name+qty+price summary.
 class _BillLineState {
   InventoryItem? item;
   final TextEditingController quantityController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
-  bool isExpanded = true;
+  _LineMode mode = _LineMode.picking;
+
+  /// Item picked + a valid positive quantity + a valid non-negative
+  /// price — used to gate the "add more" button (can't add another line
+  /// while this one is still unfinished).
+  bool get isComplete {
+    if (item == null) return false;
+    final quantity = int.tryParse(quantityController.text.trim());
+    final price = double.tryParse(priceController.text.trim());
+    return quantity != null && quantity > 0 && price != null && price >= 0;
+  }
 
   void dispose() {
     quantityController.dispose();
@@ -74,22 +93,42 @@ class _AddBillScreenState extends ConsumerState<AddBillScreen> {
     super.dispose();
   }
 
+  /// Gates the "add more" button — can't add another line while the
+  /// currently open one is still unfinished. Since only one line is ever
+  /// non-summary at a time (see _addLine/_reopenLine), this reduces to
+  /// "is the currently active line done", but checking every line is
+  /// simplest and stays correct even in edge cases.
+  bool get _canAddLine => _lines.every((line) => line.isComplete);
+
   void _addLine() {
     setState(() {
-      // Only one line's picker is ever expanded at a time. Any existing
-      // line with no item picked yet is discarded rather than collapsed
-      // — an empty collapsed row would have nothing to show; the ones
-      // that already have an item collapse to their summary as usual.
+      // Defensive cleanup — the button is disabled until every line is
+      // complete, so this should be a no-op in practice, not the thing
+      // actually enforcing it.
       _lines.removeWhere((line) {
         if (line.item == null) {
           line.dispose();
           return true;
         }
-        line.isExpanded = false;
         return false;
       });
-      _lines.add(_BillLineState());
+      // Every existing (now-complete) line collapses to its one-row
+      // summary — only the newly added line stays open.
+      for (final line in _lines) {
+        line.mode = _LineMode.summary;
+      }
+      _lines.add(_newLine());
     });
+  }
+
+  /// Live-updates _canAddLine (and thus the "add more" button's enabled
+  /// state) as the user types, since plain text-field input otherwise
+  /// wouldn't trigger a rebuild of this screen.
+  _BillLineState _newLine() {
+    final line = _BillLineState();
+    line.quantityController.addListener(() => setState(() {}));
+    line.priceController.addListener(() => setState(() {}));
+    return line;
   }
 
   void _removeLine(int index) {
@@ -230,19 +269,15 @@ class _AddBillScreenState extends ConsumerState<AddBillScreen> {
               for (var i = 0; i < _lines.length; i++) ...[
                 _BillLineCard(
                   line: _lines[i],
-                  // Items already picked on the OTHER lines — excluded
-                  // from this line's picker so the same item can't be
-                  // added twice on one bill.
-                  excludeItemIds: {
-                    for (final other in _lines)
-                      if (other != _lines[i] && other.item != null) other.item!.id,
-                  },
                   onChanged: () => setState(() {}),
-                  onExpand: () => setState(() {
+                  // Tapping a fully-collapsed summary row reopens it for
+                  // editing; every other line (already complete, per
+                  // _canAddLine) collapses to its own summary.
+                  onReopen: () => setState(() {
                     for (final line in _lines) {
-                      line.isExpanded = false;
+                      line.mode = _LineMode.summary;
                     }
-                    _lines[i].isExpanded = true;
+                    _lines[i].mode = _LineMode.editing;
                   }),
                   onRemove: () => _removeLine(i),
                 ),
@@ -250,7 +285,7 @@ class _AddBillScreenState extends ConsumerState<AddBillScreen> {
               ],
 
               OutlinedButton.icon(
-                onPressed: _addLine,
+                onPressed: _canAddLine ? _addLine : null,
                 icon: const Icon(Icons.add, size: 22),
                 label: Text(_lines.isEmpty ? Strings.addProduct : Strings.addAnotherProduct),
               ),
@@ -354,29 +389,31 @@ class _AddBillScreenState extends ConsumerState<AddBillScreen> {
   }
 }
 
-/// A product line — expanded shows the item picker only (no qty/price
-/// yet); collapsed shows a compact tappable "item name" row (tap to
-/// re-expand and change it) plus the qty/price fields, which stay
-/// editable regardless of expand state. Mutually exclusive with the
-/// picker per the revised spec: only one of {picker, qty/price fields}
-/// is visible at a time for a given line.
+/// A product line, one of three modes (see [_LineMode]):
+/// - picking: item search/list only.
+/// - editing: compact tappable item-name header (tap to reopen the
+///   picker and change the item) + qty/price fields, all editable.
+/// - summary: one fully-collapsed, read-only row (name • qty • price) —
+///   tap to reopen for editing.
 class _BillLineCard extends StatelessWidget {
   final _BillLineState line;
-  final Set<String> excludeItemIds;
   final VoidCallback onChanged;
-  final VoidCallback onExpand;
+  final VoidCallback onReopen;
   final VoidCallback onRemove;
 
   const _BillLineCard({
     required this.line,
-    required this.excludeItemIds,
     required this.onChanged,
-    required this.onExpand,
+    required this.onReopen,
     required this.onRemove,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (line.mode == _LineMode.summary) {
+      return _SummaryLineRow(line: line, onTap: onReopen, onRemove: onRemove);
+    }
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -390,10 +427,9 @@ class _BillLineCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: line.isExpanded
+                child: line.mode == _LineMode.picking
                     ? BillItemPicker(
                         selectedItem: line.item,
-                        excludeItemIds: excludeItemIds,
                         onSelected: (item) {
                           line.item = item;
                           // Default the price from the item's current
@@ -403,13 +439,20 @@ class _BillLineCard extends StatelessWidget {
                           if (line.priceController.text.trim().isEmpty) {
                             line.priceController.text = item.price.toStringAsFixed(0);
                           }
-                          line.isExpanded = false; // collapse on selection
+                          // Stays open for editing qty/price — does NOT
+                          // jump straight to the summary row; that only
+                          // happens once "add more" is tapped or another
+                          // line is reopened.
+                          line.mode = _LineMode.editing;
                           onChanged();
                         },
                       )
-                    : _CollapsedItemRow(
+                    : _EditingItemHeader(
                         name: line.item?.name ?? '',
-                        onTap: onExpand,
+                        onTap: () {
+                          line.mode = _LineMode.picking;
+                          onChanged();
+                        },
                       ),
               ),
               IconButton(
@@ -418,7 +461,7 @@ class _BillLineCard extends StatelessWidget {
               ),
             ],
           ),
-          if (!line.isExpanded && line.item != null) ...[
+          if (line.mode == _LineMode.editing) ...[
             const SizedBox(height: 12),
             // Stacked, not side-by-side — a 2-column layout left too
             // little room per field on narrower/denser screens (reported
@@ -445,11 +488,16 @@ class _BillLineCard extends StatelessWidget {
   }
 }
 
-class _CollapsedItemRow extends StatelessWidget {
+/// The compact tappable item-name header shown in [_LineMode.editing] —
+/// tap to reopen the picker and change the item. Distinct from
+/// [_SummaryLineRow]: this one still has qty/price fields visible right
+/// below it (the line is actively being filled in), the summary row
+/// doesn't show any fields at all.
+class _EditingItemHeader extends StatelessWidget {
   final String name;
   final VoidCallback onTap;
 
-  const _CollapsedItemRow({required this.name, required this.onTap});
+  const _EditingItemHeader({required this.name, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -474,6 +522,64 @@ class _CollapsedItemRow extends StatelessWidget {
               ),
             ),
             Icon(Icons.expand_more, color: AppColors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// [_LineMode.summary] — one fully-collapsed, read-only row: item name,
+/// then "{qty} {unit}  •  ₹{lineTotal}" underneath. Tap anywhere on the
+/// row (outside the remove icon) to reopen it for editing.
+class _SummaryLineRow extends StatelessWidget {
+  final _BillLineState line;
+  final VoidCallback onTap;
+  final VoidCallback onRemove;
+
+  const _SummaryLineRow({required this.line, required this.onTap, required this.onRemove});
+
+  @override
+  Widget build(BuildContext context) {
+    final item = line.item;
+    final quantity = int.tryParse(line.quantityController.text.trim()) ?? 0;
+    final price = double.tryParse(line.priceController.text.trim()) ?? 0;
+    final total = quantity * price;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item?.name ?? '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$quantity ${item?.unit ?? ''}  •  ₹${total.toStringAsFixed(0)}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.inkSoft),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: onRemove,
+              icon: Icon(Icons.close, color: AppColors.danger, size: 22),
+            ),
           ],
         ),
       ),

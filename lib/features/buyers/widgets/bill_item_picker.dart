@@ -17,16 +17,11 @@ import '../../inventory/providers/inventory_providers.dart';
 class BillItemPicker extends ConsumerStatefulWidget {
   final InventoryItem? selectedItem;
   final ValueChanged<InventoryItem> onSelected;
-  // Items already picked on OTHER lines of the same bill — excluded here
-  // so the same item can't be added twice; this line's own current
-  // selection is never excluded from itself.
-  final Set<String> excludeItemIds;
 
   const BillItemPicker({
     super.key,
     required this.selectedItem,
     required this.onSelected,
-    this.excludeItemIds = const {},
   });
 
   @override
@@ -63,12 +58,12 @@ class _BillItemPickerState extends ConsumerState<BillItemPicker> {
           ),
           error: (err, stack) => Text('सामान लोड नहीं हो सका', style: TextStyle(color: AppColors.danger)),
           data: (items) {
-            final available = items.where((i) => !widget.excludeItemIds.contains(i.id));
+            // Same item can be added on more than one line in a bill —
+            // no longer excluding items already picked elsewhere in this
+            // bill (previous behavior, since removed).
             final filtered = _searchQuery.isEmpty
-                ? available.toList()
-                : available
-                    .where((i) => matchesSearch(i.name, _searchQuery))
-                    .toList();
+                ? items
+                : items.where((i) => matchesSearch(i.name, _searchQuery)).toList();
 
             if (filtered.isEmpty) {
               return Padding(
