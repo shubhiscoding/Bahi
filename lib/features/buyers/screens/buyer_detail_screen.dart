@@ -3,17 +3,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
 import '../../../core/models/bill.dart';
 import '../../../core/models/buyer.dart';
+import '../../../core/models/deposit.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/absolute_time.dart';
 import '../providers/bill_providers.dart';
 import '../providers/buyer_providers.dart';
+import '../providers/deposit_providers.dart';
 import '../widgets/amount_input_sheet.dart';
 import 'add_bill_screen.dart';
 import 'bill_detail_screen.dart';
+import 'deposit_detail_screen.dart';
 
 enum _DateRange { allTime, last7Days, lastMonth, custom }
 
 enum _PaidFilter { all, paid, unpaid }
+
+enum _ListMode { bills, deposits }
 
 /// Buyer "about" page (Phase 8 §G) — mirrors item_detail_screen.dart's
 /// layout: name, total billed/paid/due, then (in place of a chart) a
@@ -30,6 +35,7 @@ class BuyerDetailScreen extends ConsumerStatefulWidget {
 class _BuyerDetailScreenState extends ConsumerState<BuyerDetailScreen> {
   _DateRange _dateRange = _DateRange.allTime;
   _PaidFilter _paidFilter = _PaidFilter.all;
+  _ListMode _listMode = _ListMode.bills;
   DateTimeRange? _customRange;
 
   Future<void> _pickCustomRange() async {
@@ -76,6 +82,8 @@ class _BuyerDetailScreenState extends ConsumerState<BuyerDetailScreen> {
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(buyerDetailProvider(widget.buyer.id));
     final billsAsync = ref.watch(billsForBuyerProvider(BillsForBuyerQuery(buyerId: widget.buyer.id)));
+    final depositsAsync =
+        ref.watch(depositsForBuyerProvider(DepositsForBuyerQuery(buyerId: widget.buyer.id)));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -103,13 +111,29 @@ class _BuyerDetailScreenState extends ConsumerState<BuyerDetailScreen> {
                     data: (detail) => _TotalsCard(detail: detail),
                   ),
                   const SizedBox(height: 24),
-                  Text('बिल', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 12),
-                  _PaidFilterRow(
-                    value: _paidFilter,
-                    onChanged: (f) => setState(() => _paidFilter = f),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _listMode == _ListMode.bills ? 'बिल' : Strings.deposits,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      _ListModeToggle(
+                        value: _listMode,
+                        onChanged: (m) => setState(() => _listMode = m),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
+                  // Paid/unpaid isn't a meaningful concept for a deposit
+                  // — only shown in bills mode.
+                  if (_listMode == _ListMode.bills) ...[
+                    _PaidFilterRow(
+                      value: _paidFilter,
+                      onChanged: (f) => setState(() => _paidFilter = f),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   _DateRangeRow(
                     value: _dateRange,
                     customRange: _customRange,
@@ -117,33 +141,62 @@ class _BuyerDetailScreenState extends ConsumerState<BuyerDetailScreen> {
                     onPickCustom: _pickCustomRange,
                   ),
                   const SizedBox(height: 16),
-                  billsAsync.when(
-                    loading: () => const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 32),
-                      child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
-                    ),
-                    error: (err, stack) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 32),
-                      child: Text(Strings.errorOccurred, style: const TextStyle(color: AppColors.danger)),
-                    ),
-                    data: (bills) {
-                      final filtered = _filterBills(bills);
-                      if (filtered.isEmpty) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 32),
-                          child: Center(
-                            child: Text(
-                              Strings.noBillsYet,
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.inkSoft),
+                  if (_listMode == _ListMode.bills)
+                    billsAsync.when(
+                      loading: () => const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                      ),
+                      error: (err, stack) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Text(Strings.errorOccurred, style: const TextStyle(color: AppColors.danger)),
+                      ),
+                      data: (bills) {
+                        final filtered = _filterBills(bills);
+                        if (filtered.isEmpty) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 32),
+                            child: Center(
+                              child: Text(
+                                Strings.noBillsYet,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.inkSoft),
+                              ),
                             ),
-                          ),
+                          );
+                        }
+                        return Column(
+                          children: filtered.map((bill) => _BillCard(bill: bill)).toList(),
                         );
-                      }
-                      return Column(
-                        children: filtered.map((bill) => _BillCard(bill: bill)).toList(),
-                      );
-                    },
-                  ),
+                      },
+                    )
+                  else
+                    depositsAsync.when(
+                      loading: () => const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                      ),
+                      error: (err, stack) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Text(Strings.errorOccurred, style: const TextStyle(color: AppColors.danger)),
+                      ),
+                      data: (deposits) {
+                        final filtered = _filterDeposits(deposits);
+                        if (filtered.isEmpty) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 32),
+                            child: Center(
+                              child: Text(
+                                Strings.noDepositsYet,
+                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.inkSoft),
+                              ),
+                            ),
+                          );
+                        }
+                        return Column(
+                          children: filtered.map((deposit) => _DepositCard(deposit: deposit)).toList(),
+                        );
+                      },
+                    ),
                 ],
               ),
             ),
@@ -228,6 +281,70 @@ class _BuyerDetailScreenState extends ConsumerState<BuyerDetailScreen> {
       result = result.where((b) => b.billDate.isAfter(cutoff)).toList();
     }
     return result;
+  }
+
+  List<Deposit> _filterDeposits(List<Deposit> all) {
+    var result = all;
+    if (_dateRange == _DateRange.custom && _customRange != null) {
+      final start = _customRange!.start;
+      final end = _customRange!.end.add(const Duration(days: 1));
+      result = result.where((d) => !d.paidAt.isBefore(start) && d.paidAt.isBefore(end)).toList();
+    } else if (_dateRange == _DateRange.last7Days || _dateRange == _DateRange.lastMonth) {
+      final cutoff = _dateRange == _DateRange.last7Days
+          ? DateTime.now().subtract(const Duration(days: 7))
+          : DateTime.now().subtract(const Duration(days: 30));
+      result = result.where((d) => d.paidAt.isAfter(cutoff)).toList();
+    }
+    return result;
+  }
+}
+
+class _ListModeToggle extends StatelessWidget {
+  final _ListMode value;
+  final ValueChanged<_ListMode> onChanged;
+
+  const _ListModeToggle({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget button(_ListMode mode, IconData icon, String label) {
+      final isSelected = value == mode;
+      return InkWell(
+        onTap: () => onChanged(mode),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primarySoft : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: isSelected ? AppColors.primary : AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: isSelected ? AppColors.primary : AppColors.inkSoft),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isSelected ? AppColors.primary : AppColors.inkSoft,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        button(_ListMode.bills, Icons.receipt_long, 'बिल'),
+        const SizedBox(width: 8),
+        button(_ListMode.deposits, Icons.savings, Strings.deposits),
+      ],
+    );
   }
 }
 
@@ -438,6 +555,62 @@ class _BillCard extends StatelessWidget {
                   ),
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DepositCard extends StatelessWidget {
+  final Deposit deposit;
+
+  const _DepositCard({required this.deposit});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 0,
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: AppColors.border),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => DepositDetailScreen(depositId: deposit.id)),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(Icons.savings, color: AppColors.success, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '₹${deposit.amount.toStringAsFixed(0)}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.success,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      formatAbsoluteHindi(deposit.paidAt),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.inkSoft),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: AppColors.inkSoft),
             ],
           ),
         ),

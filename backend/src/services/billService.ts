@@ -70,8 +70,15 @@ export const billService = {
       }
 
       if (input.markPaidNow) {
+        // Phase 10: this must wrap in a Deposit too — every payment,
+        // including the initial "mark paid now" at creation time, is one
+        // unified concept. Missing this was the exact bug reported: a
+        // bill shows as paid but its जमा list has no matching deposit.
+        const deposit = await tx.deposit.create({
+          data: { businessId, buyerId: input.buyerId, amount: total, recordedBy: createdBy },
+        });
         await tx.billPayment.create({
-          data: { billId: bill.id, amount: total, recordedBy: createdBy },
+          data: { billId: bill.id, amount: total, recordedBy: createdBy, depositId: deposit.id },
         });
       }
 
@@ -145,6 +152,11 @@ export const billService = {
    * Records a (possibly partial) payment. Rejects overpayment beyond the
    * remaining due (400 OVERPAYMENT) — a due balance should never go
    * negative/nonsensical (Phase 8 §D/§H).
+   *
+   * Phase 10: every payment wraps in a Deposit — one unified concept
+   * ("a deposit is money the buyer handed over"), regardless of which
+   * screen recorded it. A single-bill payment is a Deposit with exactly
+   * one BillPayment row.
    */
   async addPayment(businessId: string, billId: string, recordedBy: string, amount: number) {
     const bill = await prisma.bill.findFirst({
@@ -157,8 +169,13 @@ export const billService = {
     const due = Number(bill.total) - paidSoFar;
     if (amount > due) throw new Error('OVERPAYMENT');
 
-    return prisma.billPayment.create({
-      data: { billId, amount, recordedBy },
+    return prisma.$transaction(async (tx) => {
+      const deposit = await tx.deposit.create({
+        data: { businessId, buyerId: bill.buyerId, amount, recordedBy },
+      });
+      return tx.billPayment.create({
+        data: { billId, amount, recordedBy, depositId: deposit.id },
+      });
     });
   },
 
@@ -173,6 +190,11 @@ export const billService = {
    *
    * Whole-request validation happens before any row is written — either
    * the full amount gets allocated, or nothing does.
+   *
+   * Phase 10: wraps the whole allocation in ONE Deposit — the N
+   * BillPayment rows it creates while walking the outstanding bills all
+   * share that single depositId, so this shows up as one deposit event,
+   * not N separate ones.
    */
   async recordBuyerPayment(businessId: string, buyerId: string, recordedBy: string, amount: number) {
     const bills = await prisma.bill.findMany({
@@ -188,13 +210,17 @@ export const billService = {
     if (amount > totalDue) throw new Error('OVERPAYMENT');
 
     return prisma.$transaction(async (tx) => {
+      const deposit = await tx.deposit.create({
+        data: { businessId, buyerId, amount, recordedBy },
+      });
+
       let remaining = amount;
       const created = [];
       for (const bill of outstanding) {
         if (remaining <= 0) break;
         const allocation = Math.min(remaining, bill.due);
         const payment = await tx.billPayment.create({
-          data: { billId: bill.id, amount: allocation, recordedBy },
+          data: { billId: bill.id, amount: allocation, recordedBy, depositId: deposit.id },
         });
         created.push(payment);
         remaining -= allocation;

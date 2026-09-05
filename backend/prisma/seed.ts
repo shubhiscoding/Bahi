@@ -7,6 +7,8 @@
  * Run with: npm run seed:local  (loads .env.local, points at Docker PG)
  */
 import { PrismaClient } from '@prisma/client';
+import { buyerService } from '../src/services/buyerService';
+import { billService } from '../src/services/billService';
 
 const prisma = new PrismaClient();
 
@@ -155,6 +157,8 @@ async function main() {
     },
   ];
 
+  const itemsByName: Record<string, { id: string }> = {};
+
   for (const def of itemDefs) {
     const latest = def.history[def.history.length - 1];
     const createdAt = daysAgo(def.history[0].daysAgo);
@@ -187,6 +191,7 @@ async function main() {
             createdAt,
           },
         });
+    itemsByName[def.name] = item;
 
     // Replace price history each run so re-seeding stays consistent.
     // Alternates owner/member as editor so the history list has more
@@ -202,7 +207,65 @@ async function main() {
     });
   }
 
+  // Buyers/bills/payments — deleted and recreated fresh every run
+  // (cascades to their bills/bill_items/payments/deposits) so re-seeding
+  // never leaves stale or inconsistent data behind, unlike a plain
+  // insert-if-missing approach. Every payment goes through the REAL
+  // billService functions (not a raw prisma.billPayment.create) so the
+  // seed data can never drift from the actual Deposit invariant every
+  // real payment enforces — a bill marked paid always has a matching
+  // Deposit row, exactly like a payment made through the app.
+  await prisma.buyer.deleteMany({ where: { businessId: business.id } });
+
+  // 1) Simple case: one buyer, one fully-paid bill (single-bill deposit)
+  // and one still-unpaid bill.
+  const ramBuyer = await buyerService.create(business.id, 'राम प्रसाद');
+  await billService.create(business.id, owner.id, {
+    buyerId: ramBuyer.id,
+    billDate: daysAgo(10),
+    items: [{ itemId: itemsByName['आटा'].id, quantity: 5, price: 41 }],
+    markPaidNow: true,
+  });
+  await billService.create(business.id, owner.id, {
+    buyerId: ramBuyer.id,
+    billDate: daysAgo(2),
+    items: [{ itemId: itemsByName['चीनी'].id, quantity: 2, price: 46 }],
+    markPaidNow: false,
+  });
+
+  // 2) Multi-bill deposit case: 3 bills at staggered dates, then one
+  // buyer-level payment that fully settles the oldest and partially
+  // settles the middle one, oldest-first (Phase 9/10) — leaves the
+  // newest bill untouched and unpaid.
+  const sitaBuyer = await buyerService.create(business.id, 'सीता ट्रेडर्स');
+  await billService.create(business.id, member.id, {
+    buyerId: sitaBuyer.id,
+    billDate: daysAgo(8),
+    items: [{ itemId: itemsByName['तेल'].id, quantity: 1, price: 80 }],
+    markPaidNow: false,
+  });
+  await billService.create(business.id, member.id, {
+    buyerId: sitaBuyer.id,
+    billDate: daysAgo(5),
+    items: [{ itemId: itemsByName['नमक'].id, quantity: 1, price: 30 }],
+    markPaidNow: false,
+  });
+  await billService.create(business.id, member.id, {
+    buyerId: sitaBuyer.id,
+    billDate: daysAgo(1),
+    items: [{ itemId: itemsByName['चावल'].id, quantity: 1, price: 20 }],
+    markPaidNow: false,
+  });
+  // ₹95: fills the ₹80 oldest bill fully + ₹15 partial on the ₹30 middle
+  // one — exercises exactly the जमा list's "one deposit, two settled
+  // bills" case end to end.
+  await billService.recordBuyerPayment(business.id, sitaBuyer.id, owner.id, 95);
+
+  // 3) Empty-state case: a buyer with no bills at all yet.
+  await buyerService.create(business.id, 'गीता स्टोर्स');
+
   console.log(`Seeded business "${business.name}" (${business.id}) with 5 items, 11 units.`);
+  console.log('Seeded 3 buyers: राम प्रसाद (1 paid + 1 unpaid bill), सीता ट्रेडर्स (3 bills, one multi-bill deposit), गीता स्टोर्स (no bills yet).');
   console.log(`Owner profile: ${OWNER_ID}, member profile: ${MEMBER_ID}`);
 }
 

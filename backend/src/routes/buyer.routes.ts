@@ -3,6 +3,7 @@ import { requireAuth } from '../middleware/auth';
 import { requireMembership } from '../middleware/businessAccess';
 import { buyerService } from '../services/buyerService';
 import { billService } from '../services/billService';
+import { depositService } from '../services/depositService';
 import { emitToBusiness } from '../sockets';
 import { asyncHandler } from '../utils/asyncHandler';
 import { isFiniteNonNegativeNumber } from '../utils/validation';
@@ -65,6 +66,22 @@ buyerRoutes.get(
       dateTo: dateTo ? new Date(String(dateTo)) : undefined,
     });
     res.json(bills);
+  }),
+);
+
+// Filterable जमा (deposits) history for a buyer (Phase 10) — query
+// params: ?dateFrom=ISO, ?dateTo=ISO (both optional). No ?paid filter —
+// paid/unpaid isn't a meaningful concept for a deposit.
+buyerRoutes.get(
+  '/:buyerId/deposits',
+  requireMembership,
+  asyncHandler(async (req, res) => {
+    const { dateFrom, dateTo } = req.query;
+    const deposits = await depositService.listForBuyer(req.params.businessId, req.params.buyerId, {
+      dateFrom: dateFrom ? new Date(String(dateFrom)) : undefined,
+      dateTo: dateTo ? new Date(String(dateTo)) : undefined,
+    });
+    res.json(deposits);
   }),
 );
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
+import '../../../core/providers/text_scale_provider.dart';
 import '../../../core/services/update_service.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/name_formatter.dart';
@@ -264,6 +265,8 @@ class _SettingsSheet extends ConsumerWidget {
             ),
 
             const SizedBox(height: 16),
+            const _TextSizeRow(),
+            const SizedBox(height: 16),
 
             // Logout
             ElevatedButton.icon(
@@ -279,6 +282,72 @@ class _SettingsSheet extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Bounded text-size stepper (Phase 11) — 4 discrete, pre-tested levels
+/// (छोटा/सामान्य/बड़ा/बहुत बड़ा), not a slider (rule 9: tap over drag; also
+/// the only way to guarantee every value is safe against this app's
+/// existing layouts). [-]/[+] disable at the min/max ends instead of
+/// wrapping.
+class _TextSizeRow extends ConsumerWidget {
+  const _TextSizeRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final level = ref.watch(textScaleProvider);
+    final notifier = ref.read(textScaleProvider.notifier);
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(Strings.textSize, style: Theme.of(context).textTheme.bodyLarge),
+        ),
+        _StepButton(
+          icon: Icons.remove,
+          onPressed: level.previous == null ? null : notifier.decrease,
+        ),
+        SizedBox(
+          width: 72,
+          child: Text(
+            level.label,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+        _StepButton(
+          icon: Icons.add,
+          onPressed: level.next == null ? null : notifier.increase,
+        ),
+      ],
+    );
+  }
+}
+
+class _StepButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  const _StepButton({required this.icon, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final isEnabled = onPressed != null;
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: 48,
+        height: 48,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isEnabled ? AppColors.primarySoft : AppColors.background,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isEnabled ? AppColors.primary : AppColors.border),
+        ),
+        child: Icon(icon, color: isEnabled ? AppColors.primary : AppColors.inkSoft, size: 22),
       ),
     );
   }
