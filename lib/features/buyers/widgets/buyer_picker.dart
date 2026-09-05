@@ -34,7 +34,10 @@ class BuyerPicker extends ConsumerStatefulWidget {
 class _BuyerPickerState extends ConsumerState<BuyerPicker> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
-  bool _isExpanded = true;
+  // Starts collapsed if a buyer was already pre-selected (e.g. opened
+  // from that buyer's own detail page) — no need to re-search for
+  // someone already chosen.
+  late bool _isExpanded = widget.selectedBuyer == null;
 
   @override
   void dispose() {

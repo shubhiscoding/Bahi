@@ -66,4 +66,17 @@ class BillRepository {
       data: {'amount': amount},
     );
   }
+
+  /// Buyer-level "record payment" (Phase 9) — server allocates this one
+  /// amount across the buyer's outstanding bills, oldest first.
+  static Future<void> recordBuyerPayment({
+    required String businessId,
+    required String buyerId,
+    required double amount,
+  }) async {
+    await ApiClient.instance.post(
+      '/businesses/$businessId/buyers/$buyerId/payments',
+      data: {'amount': amount},
+    );
+  }
 }

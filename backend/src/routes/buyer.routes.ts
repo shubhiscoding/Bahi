@@ -5,6 +5,7 @@ import { buyerService } from '../services/buyerService';
 import { billService } from '../services/billService';
 import { emitToBusiness } from '../sockets';
 import { asyncHandler } from '../utils/asyncHandler';
+import { isFiniteNonNegativeNumber } from '../utils/validation';
 
 // Mounted at /businesses/:businessId/buyers — see index.ts
 export const buyerRoutes = Router({ mergeParams: true });
@@ -64,5 +65,39 @@ buyerRoutes.get(
       dateTo: dateTo ? new Date(String(dateTo)) : undefined,
     });
     res.json(bills);
+  }),
+);
+
+// Buyer-level "record payment" (Phase 9) — allocates one amount across
+// this buyer's outstanding bills, oldest first (see
+// billService.recordBuyerPayment for the allocation logic).
+buyerRoutes.post(
+  '/:buyerId/payments',
+  requireMembership,
+  asyncHandler(async (req, res) => {
+    const { amount } = req.body;
+    if (!isFiniteNonNegativeNumber(amount) || Number(amount) <= 0) {
+      return res.status(400).json({ error: 'INVALID_AMOUNT' });
+    }
+
+    const buyer = await buyerService.getById(req.params.businessId, req.params.buyerId);
+    if (!buyer) return res.status(404).json({ error: 'BUYER_NOT_FOUND' });
+
+    try {
+      const payments = await billService.recordBuyerPayment(
+        req.params.businessId,
+        req.params.buyerId,
+        req.user!.id,
+        Number(amount),
+      );
+      for (const payment of payments) {
+        emitToBusiness(req.params.businessId, 'bill:updated', { id: payment.billId });
+      }
+      res.status(201).json(payments);
+    } catch (err: any) {
+      if (err.message === 'NOTHING_DUE') return res.status(400).json({ error: 'NOTHING_DUE' });
+      if (err.message === 'OVERPAYMENT') return res.status(400).json({ error: 'OVERPAYMENT' });
+      throw err;
+    }
   }),
 );

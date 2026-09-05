@@ -7,6 +7,8 @@ import '../../../core/theme/colors.dart';
 import '../../../core/utils/absolute_time.dart';
 import '../providers/bill_providers.dart';
 import '../providers/buyer_providers.dart';
+import '../widgets/amount_input_sheet.dart';
+import 'add_bill_screen.dart';
 import 'bill_detail_screen.dart';
 
 enum _DateRange { allTime, last7Days, lastMonth, custom }
@@ -45,6 +47,31 @@ class _BuyerDetailScreenState extends ConsumerState<BuyerDetailScreen> {
     }
   }
 
+  /// Buyer-level "record payment" (Phase 9) — one amount, allocated
+  /// server-side across this buyer's outstanding bills oldest-first.
+  Future<void> _showRecordPaymentSheet(double maxAmount) async {
+    final amount = await showAmountInputSheet(
+      context,
+      title: Strings.recordPayment,
+      hintText: Strings.paymentAmount,
+      confirmLabel: Strings.recordPayment,
+      initialValue: maxAmount,
+    );
+
+    if (amount == null || amount <= 0) return;
+    try {
+      await ref.read(
+        recordBuyerPaymentProvider((buyerId: widget.buyer.id, amount: amount)).future,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final detailAsync = ref.watch(buyerDetailProvider(widget.buyer.id));
@@ -58,59 +85,127 @@ class _BuyerDetailScreenState extends ConsumerState<BuyerDetailScreen> {
         foregroundColor: AppColors.inkPrimary,
         title: Text(widget.buyer.name, overflow: TextOverflow.ellipsis),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            detailAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
-              error: (err, stack) => Text(Strings.errorOccurred, style: const TextStyle(color: AppColors.danger)),
-              data: (detail) => _TotalsCard(detail: detail),
-            ),
-            const SizedBox(height: 24),
-            Text('बिल', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
-            _PaidFilterRow(
-              value: _paidFilter,
-              onChanged: (f) => setState(() => _paidFilter = f),
-            ),
-            const SizedBox(height: 8),
-            _DateRangeRow(
-              value: _dateRange,
-              customRange: _customRange,
-              onChanged: (r) => setState(() => _dateRange = r),
-              onPickCustom: _pickCustomRange,
-            ),
-            const SizedBox(height: 16),
-            billsAsync.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
-                child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
-              ),
-              error: (err, stack) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 32),
-                child: Text(Strings.errorOccurred, style: const TextStyle(color: AppColors.danger)),
-              ),
-              data: (bills) {
-                final filtered = _filterBills(bills);
-                if (filtered.isEmpty) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    child: Center(
-                      child: Text(
-                        Strings.noBillsYet,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.inkSoft),
-                      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  detailAsync.when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                    error: (err, stack) => Text(
+                      Strings.errorOccurred,
+                      style: const TextStyle(color: AppColors.danger),
                     ),
-                  );
-                }
-                return Column(
-                  children: filtered.map((bill) => _BillCard(bill: bill)).toList(),
-                );
-              },
+                    data: (detail) => _TotalsCard(detail: detail),
+                  ),
+                  const SizedBox(height: 24),
+                  Text('बिल', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  _PaidFilterRow(
+                    value: _paidFilter,
+                    onChanged: (f) => setState(() => _paidFilter = f),
+                  ),
+                  const SizedBox(height: 8),
+                  _DateRangeRow(
+                    value: _dateRange,
+                    customRange: _customRange,
+                    onChanged: (r) => setState(() => _dateRange = r),
+                    onPickCustom: _pickCustomRange,
+                  ),
+                  const SizedBox(height: 16),
+                  billsAsync.when(
+                    loading: () => const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32),
+                      child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                    ),
+                    error: (err, stack) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Text(Strings.errorOccurred, style: const TextStyle(color: AppColors.danger)),
+                    ),
+                    data: (bills) {
+                      final filtered = _filterBills(bills);
+                      if (filtered.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 32),
+                          child: Center(
+                            child: Text(
+                              Strings.noBillsYet,
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.inkSoft),
+                            ),
+                          ),
+                        );
+                      }
+                      return Column(
+                        children: filtered.map((bill) => _BillCard(bill: bill)).toList(),
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
-          ],
+          ),
+
+          // Fixed footer, always reachable without scrolling — same
+          // proven pattern as bill_detail_screen.dart (a plain Column +
+          // Expanded inside body, NOT Scaffold.bottomNavigationBar — that
+          // slot doesn't self-constrain a plain Container's height the
+          // way Expanded does, which is what caused a regression: a
+          // short bill list rendered as a full-screen button).
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              border: Border(top: BorderSide(color: AppColors.border)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: detailAsync.when(
+                loading: () => const SizedBox(height: 56),
+                error: (err, stack) => const SizedBox.shrink(),
+                data: (detail) => detail.totalDue > 0
+                    ? ElevatedButton.icon(
+                        onPressed: () => _showRecordPaymentSheet(detail.totalDue),
+                        icon: const Icon(Icons.payments, size: 22),
+                        label: Text(
+                          '${Strings.recordPayment} (₹${detail.totalDue.toStringAsFixed(0)} बाकी)',
+                        ),
+                      )
+                    : Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          Strings.allPaidUp,
+                          style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      // A true floating button, like the "बिल बनाएँ" FAB on the Bill tab
+      // — offset upward so it clears the fixed footer above instead of
+      // overlapping it (the footer is inside body, not
+      // bottomNavigationBar, so Scaffold doesn't know about it and would
+      // otherwise place this FAB right on top of it).
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 88),
+        child: FloatingActionButton.extended(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => AddBillScreen(initialBuyer: widget.buyer)),
+            );
+          },
+          icon: const Icon(Icons.receipt_long, size: 24),
+          label: Text(Strings.createBill, style: Theme.of(context).textTheme.labelLarge),
         ),
       ),
     );
