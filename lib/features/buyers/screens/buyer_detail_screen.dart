@@ -6,6 +6,7 @@ import '../../../core/models/buyer.dart';
 import '../../../core/models/deposit.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/absolute_time.dart';
+import '../../../core/utils/offline_guard.dart';
 import '../providers/bill_providers.dart';
 import '../providers/buyer_providers.dart';
 import '../providers/deposit_providers.dart';
@@ -65,6 +66,7 @@ class _BuyerDetailScreenState extends ConsumerState<BuyerDetailScreen> {
     );
 
     if (amount == null || amount <= 0) return;
+    if (!await ensureOnline(context)) return;
     try {
       await ref.read(
         recordBuyerPaymentProvider((buyerId: widget.buyer.id, amount: amount)).future,

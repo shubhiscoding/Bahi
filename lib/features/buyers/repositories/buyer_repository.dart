@@ -82,7 +82,21 @@ class BuyerRepository {
     required String businessId,
     required String buyerId,
   }) async {
-    final response = await ApiClient.instance.get('/businesses/$businessId/buyers/$buyerId');
-    return BuyerDetail.fromJson(response.data);
+    return LocalCacheService.fetchWithFallback<BuyerDetail>(
+      key: 'buyerDetail:$businessId:$buyerId',
+      fetch: () async {
+        final response = await ApiClient.instance.get('/businesses/$businessId/buyers/$buyerId');
+        return BuyerDetail.fromJson(response.data);
+      },
+      toJson: (b) => {
+        'id': b.id,
+        'name': b.name,
+        'createdAt': b.createdAt.toIso8601String(),
+        'totalBilled': b.totalBilled,
+        'totalPaid': b.totalPaid,
+        'totalDue': b.totalDue,
+      },
+      fromJson: BuyerDetail.fromJson,
+    );
   }
 }

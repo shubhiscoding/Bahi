@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/voice_service.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/utils/offline_guard.dart';
 import '../../../core/utils/search_match.dart';
 import '../../../core/widgets/mic_search_field.dart';
 import '../providers/unit_providers.dart';
@@ -41,6 +42,7 @@ class _UnitPickerState extends ConsumerState<UnitPicker> {
   Future<void> _handleSaveNewUnit() async {
     final name = _addController.text.trim();
     if (name.isEmpty) return;
+    if (!await ensureOnline(context)) return;
 
     setState(() => _isSaving = true);
     try {

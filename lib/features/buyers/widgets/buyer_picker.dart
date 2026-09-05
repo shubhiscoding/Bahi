@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
 import '../../../core/models/buyer.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/utils/offline_guard.dart';
 import '../../../core/utils/search_match.dart';
 import '../../../core/widgets/field_with_mic.dart';
 import '../../../core/widgets/mic_search_field.dart';
@@ -299,6 +300,7 @@ class _AddBuyerDialogState extends ConsumerState<_AddBuyerDialog> {
   Future<void> _handleCreate() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
+    if (!await ensureOnline(context)) return;
 
     setState(() {
       _isSaving = true;

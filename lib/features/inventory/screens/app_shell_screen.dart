@@ -8,6 +8,7 @@ import '../../../core/providers/text_scale_provider.dart';
 import '../../../core/services/update_service.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/name_formatter.dart';
+import '../../../core/widgets/offline_banner.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../buyers/screens/buyers_list_screen.dart';
 import 'inventory_list_screen.dart';
@@ -153,12 +154,19 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
           error: (err, stack) => const SizedBox(height: 40),
         ),
       ),
-      body: IndexedStack(
-        index: _selectedTab,
-        children: const [
-          InventoryListScreen(),
-          BuyersListScreen(),
-          TeamScreen(),
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(
+            child: IndexedStack(
+              index: _selectedTab,
+              children: const [
+                InventoryListScreen(),
+                BuyersListScreen(),
+                TeamScreen(),
+              ],
+            ),
+          ),
         ],
       ),
       // 3 tabs — still within the existing max-3-icon rule (Phase 8's

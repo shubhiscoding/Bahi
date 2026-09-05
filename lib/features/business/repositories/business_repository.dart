@@ -1,5 +1,6 @@
 import '../../../core/models/business.dart';
 import '../../../core/services/api_client.dart';
+import '../../../core/services/local_cache_service.dart';
 
 /// Business repository — calls the Node/Express backend instead of
 /// Supabase directly. All authorization now lives in the backend
@@ -24,9 +25,22 @@ class BusinessRepository {
     );
   }
 
+  /// Phase 12 §B: this is the single highest-leverage cache fix — every
+  /// other read (units/buyers/bills/deposits/etc.) waits on
+  /// currentBusinessProvider, which derives from this call. Before this
+  /// fallback, a cold-start offline failed here first and never gave
+  /// any of those other repositories' own caches a chance to run,
+  /// surfacing a full-screen "कुछ गलत हुआ" error instead of the app.
   static Future<List<Business>> getUserBusinesses() async {
-    final response = await ApiClient.instance.get('/businesses/mine');
-    return (response.data as List).map((b) => Business.fromJson(b)).toList();
+    return LocalCacheService.fetchListWithFallback<Business>(
+      key: 'businesses:mine',
+      fetch: () async {
+        final response = await ApiClient.instance.get('/businesses/mine');
+        return (response.data as List).map((b) => Business.fromJson(b)).toList();
+      },
+      toJson: (b) => b.toJson(),
+      fromJson: Business.fromJson,
+    );
   }
 
   /// Generates a fresh 5-minute, single-use invite code — call this right
