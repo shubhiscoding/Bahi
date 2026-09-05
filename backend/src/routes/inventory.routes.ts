@@ -98,7 +98,14 @@ inventoryRoutes.delete(
   requireOwner,
   requireItemInBusiness,
   asyncHandler(async (req, res) => {
-    await inventoryService.delete(req.params.itemId);
+    try {
+      await inventoryService.delete(req.params.itemId);
+    } catch (err: any) {
+      if (err.message === 'ITEM_HAS_BILLS') {
+        return res.status(409).json({ error: 'ITEM_HAS_BILLS' });
+      }
+      throw err;
+    }
     emitToBusiness(req.params.businessId, 'item:deleted', { id: req.params.itemId });
     res.status(204).send();
   }),
