@@ -6,6 +6,7 @@ import '../../../core/theme/colors.dart';
 import '../../../core/utils/absolute_time.dart';
 import '../../../core/utils/name_formatter.dart';
 import '../providers/bill_providers.dart';
+import '../widgets/amount_input_sheet.dart';
 
 /// Bill detail screen (Phase 8 §G) — buyer, absolute date, line items,
 /// total, "billed by" attribution, and (if due > 0) a record-payment
@@ -16,41 +17,12 @@ class BillDetailScreen extends ConsumerWidget {
   const BillDetailScreen({super.key, required this.billId});
 
   Future<void> _showRecordPaymentSheet(BuildContext context, WidgetRef ref, double maxAmount) async {
-    final controller = TextEditingController(text: maxAmount.toStringAsFixed(0));
-    final amount = await showModalBottomSheet<double>(
-      context: context,
-      backgroundColor: AppColors.surface,
-      // Without this, the sheet doesn't resize when the keyboard opens —
-      // it just gets covered, hiding the amount field being typed into.
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(sheetContext).viewInsets.bottom),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(Strings.recordPayment, style: Theme.of(sheetContext).textTheme.titleMedium),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(prefixText: '₹ ', hintText: Strings.paymentAmount),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  final value = double.tryParse(controller.text.trim());
-                  Navigator.of(sheetContext).pop(value);
-                },
-                child: Text(Strings.recordPayment),
-              ),
-            ],
-          ),
-        ),
-      ),
+    final amount = await showAmountInputSheet(
+      context,
+      title: Strings.recordPayment,
+      hintText: Strings.paymentAmount,
+      confirmLabel: Strings.recordPayment,
+      initialValue: maxAmount,
     );
 
     if (amount == null || amount <= 0) return;

@@ -295,4 +295,104 @@ describe('bills', () => {
       expect(detail.body.totalDue).toBe(50);
     });
   });
+
+  describe('POST /businesses/:id/buyers/:buyerId/payments — oldest-first allocation (Phase 9)', () => {
+    async function makeAgedBills(businessId: string, ownerId: string, buyerId: string) {
+      const item = await makeTestItem(businessId, ownerId, { quantity: 1000 });
+      const dues = [80, 30, 20]; // oldest to newest
+      const bills = [];
+      for (let i = 0; i < dues.length; i++) {
+        const billDate = new Date(Date.now() - (dues.length - i) * 24 * 60 * 60 * 1000).toISOString();
+        const res = await request(app)
+          .post(`/businesses/${businessId}/bills`)
+          .set('Authorization', authHeader(ownerId))
+          .send({ buyerId, billDate, items: [{ itemId: item.id, quantity: 1, price: dues[i] }] });
+        bills.push(res.body);
+      }
+      return bills; // [oldest(80), middle(30), newest(20)]
+    }
+
+    it('fills the oldest bill fully, then partially fills the next, leaving the rest untouched', async () => {
+      const business = await makeTestBusiness();
+      const buyer = await prisma.buyer.create({ data: { businessId: business.businessId, name: 'Aged Buyer' } });
+      const [oldest, middle, newest] = await makeAgedBills(business.businessId, business.ownerId, buyer.id);
+
+      const res = await request(app)
+        .post(`/businesses/${business.businessId}/buyers/${buyer.id}/payments`)
+        .set('Authorization', authHeader(business.ownerId))
+        .send({ amount: 95 }); // 80 (fills oldest) + 15 (partial on middle)
+      expect(res.status).toBe(201);
+      expect(res.body).toHaveLength(2); // only 2 bills touched
+
+      const oldestDetail = await request(app)
+        .get(`/businesses/${business.businessId}/bills/${oldest.id}`)
+        .set('Authorization', authHeader(business.ownerId));
+      expect(oldestDetail.body.due).toBe(0);
+
+      const middleDetail = await request(app)
+        .get(`/businesses/${business.businessId}/bills/${middle.id}`)
+        .set('Authorization', authHeader(business.ownerId));
+      expect(middleDetail.body.due).toBe(15); // 30 - 15
+
+      const newestDetail = await request(app)
+        .get(`/businesses/${business.businessId}/bills/${newest.id}`)
+        .set('Authorization', authHeader(business.ownerId));
+      expect(newestDetail.body.due).toBe(20); // untouched
+    });
+
+    it('rejects an amount greater than the total outstanding due, writing nothing', async () => {
+      const business = await makeTestBusiness();
+      const buyer = await prisma.buyer.create({ data: { businessId: business.businessId, name: 'Overpay Buyer' } });
+      const [oldest] = await makeAgedBills(business.businessId, business.ownerId, buyer.id);
+
+      const res = await request(app)
+        .post(`/businesses/${business.businessId}/buyers/${buyer.id}/payments`)
+        .set('Authorization', authHeader(business.ownerId))
+        .send({ amount: 1000 }); // total due is 80+30+20=130
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('OVERPAYMENT');
+
+      const oldestDetail = await request(app)
+        .get(`/businesses/${business.businessId}/bills/${oldest.id}`)
+        .set('Authorization', authHeader(business.ownerId));
+      expect(oldestDetail.body.due).toBe(80); // untouched
+    });
+
+    it('rejects when the buyer has nothing due', async () => {
+      const business = await makeTestBusiness();
+      const buyer = await prisma.buyer.create({ data: { businessId: business.businessId, name: 'PaidUp Buyer' } });
+      const item = await makeTestItem(business.businessId, business.ownerId);
+      await request(app)
+        .post(`/businesses/${business.businessId}/bills`)
+        .set('Authorization', authHeader(business.ownerId))
+        .send({ buyerId: buyer.id, items: [{ itemId: item.id, quantity: 1, price: 50 }], markPaidNow: true });
+
+      const res = await request(app)
+        .post(`/businesses/${business.businessId}/buyers/${buyer.id}/payments`)
+        .set('Authorization', authHeader(business.ownerId))
+        .send({ amount: 10 });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('NOTHING_DUE');
+    });
+
+    it('exact total due fully pays off every bill', async () => {
+      const business = await makeTestBusiness();
+      const buyer = await prisma.buyer.create({ data: { businessId: business.businessId, name: 'ExactPay Buyer' } });
+      const [oldest, middle, newest] = await makeAgedBills(business.businessId, business.ownerId, buyer.id);
+
+      const res = await request(app)
+        .post(`/businesses/${business.businessId}/buyers/${buyer.id}/payments`)
+        .set('Authorization', authHeader(business.ownerId))
+        .send({ amount: 130 });
+      expect(res.status).toBe(201);
+      expect(res.body).toHaveLength(3);
+
+      for (const bill of [oldest, middle, newest]) {
+        const detail = await request(app)
+          .get(`/businesses/${business.businessId}/bills/${bill.id}`)
+          .set('Authorization', authHeader(business.ownerId));
+        expect(detail.body.due).toBe(0);
+      }
+    });
+  });
 });

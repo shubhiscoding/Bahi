@@ -110,6 +110,7 @@ class Strings {
   static const recordPayment = 'भुगतान दर्ज करें';
   static const paymentAmount = 'कितना भुगतान हुआ';
   static const paymentsMade = 'भुगतान की सूची';
+  static const allPaidUp = 'सब भुगतान हो गया';
   static const billedBy = 'बिल बनाया';
   static const noBillsYet = 'अभी कोई बिल नहीं है';
   static const duplicateBuyerName = 'यह नाम पहले से है';

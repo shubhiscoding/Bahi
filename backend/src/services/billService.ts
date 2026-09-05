@@ -161,4 +161,45 @@ export const billService = {
       data: { billId, amount, recordedBy },
     });
   },
+
+  /**
+   * Buyer-level "record payment" (Phase 9) — allocates one total amount
+   * across the buyer's outstanding bills, oldest billDate first, filling
+   * each bill's remaining due completely before moving to the next. The
+   * last bill touched may only get a partial amount if it doesn't fully
+   * cover that bill's due. One BillPayment row per bill actually touched
+   * — same table the per-bill "record payment" flow writes to, so each
+   * bill's own payments-made list correctly reflects this.
+   *
+   * Whole-request validation happens before any row is written — either
+   * the full amount gets allocated, or nothing does.
+   */
+  async recordBuyerPayment(businessId: string, buyerId: string, recordedBy: string, amount: number) {
+    const bills = await prisma.bill.findMany({
+      where: { businessId, buyerId },
+      include: { payments: true },
+      orderBy: { billDate: 'asc' },
+    });
+
+    const outstanding = bills.map(billWithDue).filter((b) => b.due > 0);
+    if (outstanding.length === 0) throw new Error('NOTHING_DUE');
+
+    const totalDue = outstanding.reduce((sum, b) => sum + b.due, 0);
+    if (amount > totalDue) throw new Error('OVERPAYMENT');
+
+    return prisma.$transaction(async (tx) => {
+      let remaining = amount;
+      const created = [];
+      for (const bill of outstanding) {
+        if (remaining <= 0) break;
+        const allocation = Math.min(remaining, bill.due);
+        const payment = await tx.billPayment.create({
+          data: { billId: bill.id, amount: allocation, recordedBy },
+        });
+        created.push(payment);
+        remaining -= allocation;
+      }
+      return created;
+    });
+  },
 };

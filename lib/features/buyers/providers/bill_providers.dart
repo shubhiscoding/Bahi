@@ -105,3 +105,22 @@ final addPaymentProvider =
   ref.invalidate(buyerDetailProvider);
   ref.invalidate(billsForBuyerProvider);
 });
+
+/// Buyer-level "record payment" (Phase 9) — one amount, allocated
+/// server-side across the buyer's outstanding bills oldest-first.
+final recordBuyerPaymentProvider =
+    FutureProvider.autoDispose.family<void, ({String buyerId, double amount})>((ref, input) async {
+  final business = await ref.watch(currentBusinessProvider.future);
+  if (business == null) throw Exception('No business selected');
+  await BillRepository.recordBuyerPayment(
+    businessId: business.id,
+    buyerId: input.buyerId,
+    amount: input.amount,
+  );
+  // Touches every bill it allocated to, so the same broad refetch as
+  // the per-bill payment path applies — every read of this data must
+  // show the new state immediately, not after an unrelated navigation.
+  ref.invalidate(buyerDetailProvider);
+  ref.invalidate(billsForBuyerProvider);
+  ref.invalidate(billDetailProvider);
+});

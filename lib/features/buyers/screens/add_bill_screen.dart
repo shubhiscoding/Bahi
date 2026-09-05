@@ -35,7 +35,13 @@ class _BillLineState {
 /// partial / paid in full, defaults unpaid) — partial shows an amount
 /// field and records that payment right after the bill is created.
 class AddBillScreen extends ConsumerStatefulWidget {
-  const AddBillScreen({super.key});
+  // Pre-selects the buyer picker (collapsed, not the expanded
+  // search+list) when opened from that buyer's own detail page — the
+  // shopkeeper is already looking at that buyer, no need to search for
+  // them again.
+  final Buyer? initialBuyer;
+
+  const AddBillScreen({super.key, this.initialBuyer});
 
   @override
   ConsumerState<AddBillScreen> createState() => _AddBillScreenState();
@@ -52,6 +58,12 @@ class _AddBillScreenState extends ConsumerState<AddBillScreen> {
   _PaymentChoice? _paymentChoice;
   final _partialAmountController = TextEditingController();
   bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedBuyer = widget.initialBuyer;
+  }
 
   @override
   void dispose() {
