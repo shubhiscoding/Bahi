@@ -141,6 +141,16 @@ class UpdateService {
     await Permission.requestInstallPackages.request();
     // Android 13+ requires this for showNotification to actually post one.
     await Permission.notification.request();
+    // OEM battery optimization (Samsung One UI's "sleeping apps",
+    // MIUI/other budget-OEM equivalents) can pause/kill the
+    // WorkManager job the instant the app leaves the foreground —
+    // reported as a download that shows a little progress then
+    // instantly cancels, and is device-specific (doesn't reproduce on
+    // phones without an aggressive battery manager). Requesting this
+    // exemption surfaces the OS's own permission dialog; if the user
+    // declines, the download still proceeds — just without the
+    // survives-backgrounding guarantee.
+    await Permission.ignoreBatteryOptimizations.request();
 
     final dir = await getExternalStorageDirectory();
     if (dir == null) {
