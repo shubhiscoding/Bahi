@@ -56,7 +56,13 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
   Future<void> _handleSave() async {
     if (!await ensureOnline(context)) return;
 
-    final name = _nameController.text.trim();
+    // Name is only ever taken from the field when creating — set once at
+    // creation, intentionally not editable afterward (confirmed
+    // decision). In edit mode the field isn't even shown; always send
+    // the item's existing, unchanged name through (the backend also
+    // ignores any name it's sent on update, so this is belt-and-braces,
+    // not the only thing enforcing it).
+    final name = isEditing ? widget.item!.name : _nameController.text.trim();
     final priceText = _priceController.text.trim();
     final quantityText = _quantityController.text.trim();
 
@@ -177,12 +183,27 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Name field (voice-first, per design.md rule 1)
-              FieldWithMic(
-                label: Strings.itemName,
-                controller: _nameController,
-                keyboardType: TextInputType.text,
-              ),
+              // Name: editable only at creation (voice-first, per
+              // design.md rule 1). Set once and intentionally not
+              // editable afterward (confirmed decision) — shown as a
+              // plain read-only label in edit mode instead, so the
+              // screen still shows what item this is without offering a
+              // field that can't actually be saved.
+              if (isEditing) ...[
+                Text(Strings.itemName, style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: 4),
+                Text(
+                  widget.item!.name,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppColors.inkSoft,
+                      ),
+                ),
+              ] else
+                FieldWithMic(
+                  label: Strings.itemName,
+                  controller: _nameController,
+                  keyboardType: TextInputType.text,
+                ),
               const SizedBox(height: 20),
 
               // Quantity field
