@@ -420,28 +420,23 @@ class _BillLineCard extends StatelessWidget {
           ),
           if (!line.isExpanded && line.item != null) ...[
             const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: FieldWithMic(
-                    label: Strings.itemQuantity,
-                    controller: line.quantityController,
-                    keyboardType: TextInputType.number,
-                    isNumeric: true,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: FieldWithMic(
-                    label: Strings.itemPrice,
-                    controller: line.priceController,
-                    keyboardType: TextInputType.number,
-                    prefixText: '₹ ',
-                    isNumeric: true,
-                  ),
-                ),
-              ],
+            // Stacked, not side-by-side — a 2-column layout left too
+            // little room per field on narrower/denser screens (reported
+            // on a Samsung M34: कीमत is almost always 3-4 digits, and the
+            // side-by-side box was too cramped to comfortably read/type).
+            FieldWithMic(
+              label: Strings.itemQuantity,
+              controller: line.quantityController,
+              keyboardType: TextInputType.number,
+              isNumeric: true,
+            ),
+            const SizedBox(height: 12),
+            FieldWithMic(
+              label: Strings.itemPrice,
+              controller: line.priceController,
+              keyboardType: TextInputType.number,
+              prefixText: '₹ ',
+              isNumeric: true,
             ),
           ],
         ],
