@@ -3,6 +3,7 @@ import '../../../core/models/bill.dart';
 import '../../business/providers/business_providers.dart';
 import '../repositories/bill_repository.dart';
 import 'buyer_providers.dart';
+import 'deposit_providers.dart';
 
 /// Input for creating a bill (Phase 8 §D/§F).
 class CreateBillInput {
@@ -104,6 +105,9 @@ final addPaymentProvider =
   ref.invalidate(billDetailProvider(input.billId));
   ref.invalidate(buyerDetailProvider);
   ref.invalidate(billsForBuyerProvider);
+  // Every payment now also creates a Deposit (Phase 10) — refetch that
+  // list too, same "every write refetches everything that reads it".
+  ref.invalidate(depositsForBuyerProvider);
 });
 
 /// Buyer-level "record payment" (Phase 9) — one amount, allocated
@@ -123,4 +127,5 @@ final recordBuyerPaymentProvider =
   ref.invalidate(buyerDetailProvider);
   ref.invalidate(billsForBuyerProvider);
   ref.invalidate(billDetailProvider);
+  ref.invalidate(depositsForBuyerProvider);
 });

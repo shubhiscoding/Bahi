@@ -30,6 +30,7 @@ model Profile {
   itemEditLogEntries InventoryEditLog[]      @relation("ItemEditLogEditor")
   billsCreated       Bill[]                  @relation("BillCreator")
   paymentsRecorded   BillPayment[]           @relation("BillPaymentRecorder")
+  depositsRecorded   Deposit[]               @relation("DepositRecorder")
 
   @@map("profiles")
 }
@@ -47,6 +48,7 @@ model Business {
   units       BusinessUnit[]
   buyers      Buyer[]
   bills       Bill[]
+  deposits    Deposit[]
 
   @@map("businesses")
 }
@@ -195,6 +197,7 @@ model Buyer {
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   bills    Bill[]
+  deposits Deposit[]
 
   @@unique([businessId, name])
   @@map("buyers")
@@ -253,9 +256,38 @@ model BillPayment {
   amount     Decimal  @db.Decimal(10, 2)
   paidAt     DateTime @default(now()) @map("paid_at") @db.Timestamptz
   recordedBy String   @map("recorded_by") @db.Uuid
+  // Which deposit event produced this row — nullable, no backfill for
+  // rows written before this column existed (Phase 10, matches this
+  // project's established precedent for every prior additive column).
+  // `amount` here is exactly "how much of that deposit applied to this
+  // specific bill" — a multi-bill deposit has several BillPayment rows
+  // sharing one depositId.
+  depositId  String?  @map("deposit_id") @db.Uuid
 
-  bill     Bill    @relation(fields: [billId], references: [id], onDelete: Cascade)
-  recorder Profile @relation("BillPaymentRecorder", fields: [recordedBy], references: [id], onDelete: Restrict)
+  bill     Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
+  recorder Profile  @relation("BillPaymentRecorder", fields: [recordedBy], references: [id], onDelete: Restrict)
+  deposit  Deposit? @relation(fields: [depositId], references: [id], onDelete: Cascade)
 
   @@map("bill_payments")
+}
+
+/// One payment EVENT — a buyer handing over money, regardless of whether
+/// it settled one bill or several (Phase 10). Every payment, from either
+/// bill_detail_screen's per-bill flow or buyer_detail_screen's oldest-
+/// first allocation flow, wraps in exactly one Deposit. `amount` is the
+/// denormalized total (= sum of this deposit's BillPayment rows).
+model Deposit {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  buyerId    String   @map("buyer_id") @db.Uuid
+  amount     Decimal  @db.Decimal(10, 2)
+  paidAt     DateTime @default(now()) @map("paid_at") @db.Timestamptz
+  recordedBy String   @map("recorded_by") @db.Uuid
+
+  business Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  buyer    Buyer         @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  recorder Profile       @relation("DepositRecorder", fields: [recordedBy], references: [id], onDelete: Restrict)
+  payments BillPayment[]
+
+  @@map("deposits")
 }

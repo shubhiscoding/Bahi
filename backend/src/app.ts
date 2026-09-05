@@ -5,6 +5,7 @@ import { authRoutes } from './routes/auth.routes';
 import { businessRoutes } from './routes/business.routes';
 import { billRoutes } from './routes/bill.routes';
 import { buyerRoutes } from './routes/buyer.routes';
+import { depositRoutes } from './routes/deposit.routes';
 import { devRoutes } from './routes/dev.routes';
 import { inventoryRoutes } from './routes/inventory.routes';
 
@@ -34,6 +35,7 @@ export function createApp() {
   app.use('/businesses/:businessId/items', inventoryRoutes);
   app.use('/businesses/:businessId/buyers', buyerRoutes);
   app.use('/businesses/:businessId/bills', billRoutes);
+  app.use('/businesses/:businessId/deposits', depositRoutes);
 
   // Dev-only, never mounted in prod — see routes/dev.routes.ts.
   if (env.devMode) {

@@ -44,6 +44,7 @@ class Strings {
   // Settings
   static const settings = 'सेटिंग्स';
   static const checkForUpdates = 'अपडेट देखें';
+  static const textSize = 'टेक्स्ट का आकार';
   static const logout = 'लॉग आउट करें';
   static const loggingOut = 'लॉग आउट हो रहे हैं...';
 
@@ -114,4 +115,10 @@ class Strings {
   static const billedBy = 'बिल बनाया';
   static const noBillsYet = 'अभी कोई बिल नहीं है';
   static const duplicateBuyerName = 'यह नाम पहले से है';
+
+  // Deposits (Phase 10)
+  static const deposits = 'जमा';
+  static const noDepositsYet = 'अभी कोई जमा नहीं है';
+  static const settledBills = 'बिल जिनका भुगतान हुआ';
+  static const depositTotal = 'कुल जमा';
 }

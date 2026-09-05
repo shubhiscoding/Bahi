@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_downloader/flutter_downloader.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:inditrans/inditrans.dart' as inditrans;
+import 'core/providers/text_scale_provider.dart';
 import 'core/services/supabase_client.dart';
 import 'core/services/update_service.dart';
 import 'core/theme/theme.dart';
@@ -12,6 +13,10 @@ void main() async {
 
   // Initialize Supabase
   await SupabaseClientService.initialize();
+
+  // Loaded before runApp() so the very first frame already renders at
+  // the persisted text size — no flash-then-resize (Phase 11).
+  final textSizeLevel = await loadPersistedTextSizeLevel();
 
   // Initialize the downloader used for in-app update APKs (plan §O/§8)
   await FlutterDownloader.initialize();
@@ -31,8 +36,11 @@ void main() async {
   }
 
   runApp(
-    const ProviderScope(
-      child: MyApp(),
+    ProviderScope(
+      overrides: [
+        textScaleProvider.overrideWith((ref) => TextScaleNotifier(textSizeLevel)),
+      ],
+      child: const MyApp(),
     ),
   );
 }
@@ -42,10 +50,20 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final textSizeLevel = ref.watch(textScaleProvider);
+
     return MaterialApp(
       title: 'बही',
       theme: AppTheme.lightTheme(),
       debugShowCheckedModeBanner: false,
+      // Applies the bounded text-size level app-wide (Phase 11) — no
+      // per-screen changes needed.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: TextScaler.linear(textSizeLevel.scale),
+        ),
+        child: child!,
+      ),
       home: const AppRouter(),
     );
   }

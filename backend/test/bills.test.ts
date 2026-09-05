@@ -165,6 +165,26 @@ describe('bills', () => {
       expect(detail.body.paid).toBe(30);
     });
 
+    it('markPaidNow also creates a matching deposit — the exact regression reported after Phase 10 shipped (bills showed paid with no deposit)', async () => {
+      const item = await makeTestItem(businessId, ownerId, { quantity: 20 });
+      const create = await request(app)
+        .post(`/businesses/${businessId}/bills`)
+        .set('Authorization', authHeader(ownerId))
+        .send({ buyerId, items: [{ itemId: item.id, quantity: 2, price: 25 }], markPaidNow: true });
+
+      const deposits = await request(app)
+        .get(`/businesses/${businessId}/buyers/${buyerId}/deposits`)
+        .set('Authorization', authHeader(ownerId));
+      const matching = deposits.body.find((d: any) => Number(d.amount) === 50);
+      expect(matching).toBeTruthy();
+
+      const depositDetail = await request(app)
+        .get(`/businesses/${businessId}/deposits/${matching.id}`)
+        .set('Authorization', authHeader(ownerId));
+      expect(depositDetail.body.bills).toHaveLength(1);
+      expect(depositDetail.body.bills[0].billId).toBe(create.body.id);
+    });
+
     it('unpaid bill has full due, zero paid', async () => {
       const item = await makeTestItem(businessId, ownerId, { quantity: 20 });
       const create = await request(app)
@@ -393,6 +413,132 @@ describe('bills', () => {
           .set('Authorization', authHeader(business.ownerId));
         expect(detail.body.due).toBe(0);
       }
+    });
+  });
+
+  describe('Deposits (Phase 10) — every payment wraps in exactly one Deposit', () => {
+    it('a single-bill payment creates one deposit with one settled bill', async () => {
+      const business = await makeTestBusiness();
+      const buyer = await prisma.buyer.create({ data: { businessId: business.businessId, name: 'Single Deposit Buyer' } });
+      const item = await makeTestItem(business.businessId, business.ownerId);
+      const bill = await request(app)
+        .post(`/businesses/${business.businessId}/bills`)
+        .set('Authorization', authHeader(business.ownerId))
+        .send({ buyerId: buyer.id, items: [{ itemId: item.id, quantity: 1, price: 100 }] });
+
+      await request(app)
+        .post(`/businesses/${business.businessId}/bills/${bill.body.id}/payments`)
+        .set('Authorization', authHeader(business.ownerId))
+        .send({ amount: 40 });
+
+      const deposits = await request(app)
+        .get(`/businesses/${business.businessId}/buyers/${buyer.id}/deposits`)
+        .set('Authorization', authHeader(business.ownerId));
+      expect(deposits.body).toHaveLength(1);
+      expect(Number(deposits.body[0].amount)).toBe(40);
+
+      const detail = await request(app)
+        .get(`/businesses/${business.businessId}/deposits/${deposits.body[0].id}`)
+        .set('Authorization', authHeader(business.ownerId));
+      expect(detail.body.bills).toHaveLength(1);
+      expect(detail.body.bills[0].billId).toBe(bill.body.id);
+      expect(Number(detail.body.bills[0].amount)).toBe(40);
+    });
+
+    it('a buyer-level payment spanning 2 bills creates ONE deposit with two settled bills summing to its amount', async () => {
+      const business = await makeTestBusiness();
+      const buyer = await prisma.buyer.create({ data: { businessId: business.businessId, name: 'Multi Deposit Buyer' } });
+      const item = await makeTestItem(business.businessId, business.ownerId, { quantity: 1000 });
+
+      const older = await request(app)
+        .post(`/businesses/${business.businessId}/bills`)
+        .set('Authorization', authHeader(business.ownerId))
+        .send({
+          buyerId: buyer.id,
+          billDate: new Date(Date.now() - 2 * 86400000).toISOString(),
+          items: [{ itemId: item.id, quantity: 1, price: 80 }],
+        });
+      const newer = await request(app)
+        .post(`/businesses/${business.businessId}/bills`)
+        .set('Authorization', authHeader(business.ownerId))
+        .send({
+          buyerId: buyer.id,
+          billDate: new Date(Date.now() - 1 * 86400000).toISOString(),
+          items: [{ itemId: item.id, quantity: 1, price: 30 }],
+        });
+
+      await request(app)
+        .post(`/businesses/${business.businessId}/buyers/${buyer.id}/payments`)
+        .set('Authorization', authHeader(business.ownerId))
+        .send({ amount: 95 }); // fills older (80) + partial on newer (15)
+
+      const deposits = await request(app)
+        .get(`/businesses/${business.businessId}/buyers/${buyer.id}/deposits`)
+        .set('Authorization', authHeader(business.ownerId));
+      expect(deposits.body).toHaveLength(1); // ONE deposit, not two
+      expect(Number(deposits.body[0].amount)).toBe(95);
+
+      const detail = await request(app)
+        .get(`/businesses/${business.businessId}/deposits/${deposits.body[0].id}`)
+        .set('Authorization', authHeader(business.ownerId));
+      expect(detail.body.bills).toHaveLength(2);
+      const sum = detail.body.bills.reduce((s: number, b: any) => s + Number(b.amount), 0);
+      expect(sum).toBe(95);
+      const olderRow = detail.body.bills.find((b: any) => b.billId === older.body.id);
+      const newerRow = detail.body.bills.find((b: any) => b.billId === newer.body.id);
+      expect(Number(olderRow.amount)).toBe(80);
+      expect(Number(newerRow.amount)).toBe(15);
+    });
+
+    it('deposits list is sorted latest-first', async () => {
+      const business = await makeTestBusiness();
+      const buyer = await prisma.buyer.create({ data: { businessId: business.businessId, name: 'Sorted Deposit Buyer' } });
+      const item = await makeTestItem(business.businessId, business.ownerId, { quantity: 1000 });
+      const bill = await request(app)
+        .post(`/businesses/${business.businessId}/bills`)
+        .set('Authorization', authHeader(business.ownerId))
+        .send({ buyerId: buyer.id, items: [{ itemId: item.id, quantity: 10, price: 100 }] });
+
+      await request(app)
+        .post(`/businesses/${business.businessId}/bills/${bill.body.id}/payments`)
+        .set('Authorization', authHeader(business.ownerId))
+        .send({ amount: 10 });
+      await request(app)
+        .post(`/businesses/${business.businessId}/bills/${bill.body.id}/payments`)
+        .set('Authorization', authHeader(business.ownerId))
+        .send({ amount: 20 });
+
+      const deposits = await request(app)
+        .get(`/businesses/${business.businessId}/buyers/${buyer.id}/deposits`)
+        .set('Authorization', authHeader(business.ownerId));
+      expect(deposits.body).toHaveLength(2);
+      expect(Number(deposits.body[0].amount)).toBe(20); // most recent first
+      expect(Number(deposits.body[1].amount)).toBe(10);
+    });
+
+    it('a deposit belonging to another business is 404, not leaked', async () => {
+      const businessA = await makeTestBusiness();
+      const businessB = await makeTestBusiness();
+      const buyer = await prisma.buyer.create({ data: { businessId: businessA.businessId, name: 'Isolation Buyer' } });
+      const item = await makeTestItem(businessA.businessId, businessA.ownerId);
+      const bill = await request(app)
+        .post(`/businesses/${businessA.businessId}/bills`)
+        .set('Authorization', authHeader(businessA.ownerId))
+        .send({ buyerId: buyer.id, items: [{ itemId: item.id, quantity: 1, price: 50 }] });
+      await request(app)
+        .post(`/businesses/${businessA.businessId}/bills/${bill.body.id}/payments`)
+        .set('Authorization', authHeader(businessA.ownerId))
+        .send({ amount: 50 });
+
+      const deposits = await request(app)
+        .get(`/businesses/${businessA.businessId}/buyers/${buyer.id}/deposits`)
+        .set('Authorization', authHeader(businessA.ownerId));
+      const depositId = deposits.body[0].id;
+
+      const res = await request(app)
+        .get(`/businesses/${businessB.businessId}/deposits/${depositId}`)
+        .set('Authorization', authHeader(businessB.ownerId));
+      expect(res.status).toBe(404);
     });
   });
 });

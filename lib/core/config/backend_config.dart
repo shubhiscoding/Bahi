@@ -11,8 +11,8 @@
 /// nginx + certbot once one is available.
 const String backendBaseUrl = 'http://13.201.193.198:4000';
 
-// Local dev override (Dockerized Postgres + npm run dev:local) — swap the
-// line above for this one when testing locally, never commit it swapped:
+// Local dev override (Dockerized Postgres + npm run dev:local) — swap
+// back to the line above before committing/shipping prod-ready changes.
 // const String backendBaseUrl = 'http://localhost:4000';
 
 /// True only while pointed at a local dev backend — gates dev-only UI
