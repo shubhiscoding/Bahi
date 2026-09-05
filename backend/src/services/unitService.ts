@@ -1,8 +1,11 @@
 import { prisma } from '../prisma';
 
-// Matches Flutter's Strings.unitBox/unitKg/unitLitre — reusing existing
-// copy, not inventing new labels. Every new business gets these 3 linked.
-const SEED_UNIT_NAMES = ['डिब्बा', 'किग्रा', 'लीटर'];
+// डिब्बा/बोतल match Flutter's Strings.unitBox/unitBottle; बोरी (sack) has
+// no matching Strings constant today — these are free-form Unit names,
+// not required to mirror a Strings constant. Every new business gets
+// these 3 linked. (Previously डिब्बा/किग्रा/लीटर — changed per updated
+// decision.)
+const SEED_UNIT_NAMES = ['बोरी', 'डिब्बा', 'बोतल'];
 
 export const unitService = {
   // Sorted by recency (last used on an item) — never-used units (null)
