@@ -148,6 +148,20 @@ class _AddBillScreenState extends ConsumerState<AddBillScreen> {
     if (picked != null) setState(() => _billDate = picked);
   }
 
+  /// Computes the current bill's total across all lines — live-updates as
+  /// the user changes qty/price (the controllers have listeners that
+  /// trigger setState, so this recomputes on every keystroke).
+  double get _billTotal {
+    double total = 0;
+    for (final line in _lines) {
+      if (line.item == null) continue;
+      final qty = int.tryParse(line.quantityController.text.trim()) ?? 0;
+      final price = double.tryParse(line.priceController.text.trim()) ?? 0;
+      total += qty * price;
+    }
+    return total;
+  }
+
   Future<void> _handleSave() async {
     if (!await ensureOnline(context)) return;
 
@@ -317,6 +331,35 @@ class _AddBillScreenState extends ConsumerState<AddBillScreen> {
               ),
               const SizedBox(height: 24),
 
+              // Total bill amount (live-updating as qty/price change)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.primarySoft,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.primary),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      Strings.totalBilled,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: AppColors.inkPrimary,
+                          ),
+                    ),
+                    Text(
+                      '₹${_billTotal.toStringAsFixed(0)}',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
               Row(
                 children: [
                   Expanded(
@@ -455,6 +498,34 @@ class _BillLineCard extends StatelessWidget {
                         },
                       ),
               ),
+              // Confirm/collapse button (editing mode) — collapses to
+              // summary row when qty and price are both filled correctly
+              if (line.mode == _LineMode.editing) ...[
+                IconButton(
+                  onPressed: () {
+                    final qty = int.tryParse(line.quantityController.text.trim());
+                    final price = double.tryParse(line.priceController.text.trim());
+                    final isValid = qty != null && qty > 0 && price != null && price > 0;
+                    if (isValid) {
+                      line.mode = _LineMode.summary;
+                      onChanged();
+                    }
+                  },
+                  tooltip: 'पूर्ण करें',
+                  // Disable if qty or price invalid
+                  disabledColor: AppColors.inkSoft,
+                  icon: Icon(
+                    Icons.check,
+                    color: () {
+                      final qty = int.tryParse(line.quantityController.text.trim());
+                      final price = double.tryParse(line.priceController.text.trim());
+                      final isValid = qty != null && qty > 0 && price != null && price > 0;
+                      return isValid ? AppColors.primary : AppColors.inkSoft;
+                    }(),
+                    size: 22,
+                  ),
+                ),
+              ],
               IconButton(
                 onPressed: onRemove,
                 icon: Icon(Icons.close, color: AppColors.danger, size: 22),

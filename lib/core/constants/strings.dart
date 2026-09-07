@@ -101,6 +101,8 @@ class Strings {
   static const noBuyers = 'कोई खरीदार नहीं है';
   static const addProduct = 'सामान जोड़ें';
   static const addAnotherProduct = '+ और सामान जोड़ें';
+  static const addNewProduct = '+ नया सामान जोड़ें';
+  static const noProductsFound = 'कोई सामान नहीं मिला';
   static const billDate = 'तारीख़';
   static const paid = 'भुगतान हो गया';
   static const unpaid = 'बाकी है';
