@@ -95,7 +95,7 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
     setState(() => _isSaving = true);
 
     try {
-      await ref.read(
+      final savedItem = await ref.read(
         saveItemProvider(
           ItemFormInput(
             itemId: widget.item?.id,
@@ -106,7 +106,7 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
           ),
         ).future,
       );
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop(savedItem);
     } catch (e) {
       setState(() => _isSaving = false);
       if (mounted) {
