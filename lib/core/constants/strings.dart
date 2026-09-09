@@ -35,8 +35,8 @@ class Strings {
   static const team = 'साथी';
   static const addCoworker = 'साथी जोड़ें';
   static const removeMember = 'हटाएँ';
-  static const owner = 'मालिक';
-  static const member = 'सदस्य';
+  static const owner = 'Admin';
+  static const member = 'Guest';
   static const removingMember = 'हटा रहे हैं...';
   static const leaveBusiness = 'दुकान छोड़ें';
   static const leavingBusiness = 'छोड़ रहे हैं...';

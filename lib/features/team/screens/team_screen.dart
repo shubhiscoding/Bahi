@@ -181,11 +181,11 @@ class _DevRoleSwitcherState extends ConsumerState<_DevRoleSwitcher> {
           else ...[
             TextButton(
               onPressed: currentRole == 'owner' ? null : () => _switchTo('owner'),
-              child: const Text('मालिक'),
+              child: const Text('Admin'),
             ),
             TextButton(
               onPressed: currentRole == 'member' ? null : () => _switchTo('member'),
-              child: const Text('सदस्य'),
+              child: const Text('Guest'),
             ),
           ],
         ],
