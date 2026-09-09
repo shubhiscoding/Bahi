@@ -26,11 +26,7 @@ class AddEditItemScreen extends ConsumerStatefulWidget {
 class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
   late TextEditingController _nameController;
   late TextEditingController _priceController;
-  // Phase 13: quantity/stock hidden from the UI for launch (kept, not
-  // deleted — the field/controller/backend all still exist underneath,
-  // this is purely commented out so it's a quick revert later). No
-  // screen reads or writes this controller's text anymore.
-  // late TextEditingController _quantityController;
+  late TextEditingController _quantityController;
   late String _selectedUnit;
   bool _isSaving = false;
 
@@ -43,9 +39,9 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
     _priceController = TextEditingController(
       text: widget.item != null ? widget.item!.price.toStringAsFixed(0) : '',
     );
-    // _quantityController = TextEditingController(
-    //   text: widget.item?.quantity.toString() ?? '',
-    // );
+    _quantityController = TextEditingController(
+      text: widget.item?.quantity.toString() ?? '',
+    );
     _selectedUnit = widget.item?.unit ?? '';
   }
 
@@ -53,7 +49,7 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
   void dispose() {
     _nameController.dispose();
     _priceController.dispose();
-    // _quantityController.dispose();
+    _quantityController.dispose();
     super.dispose();
   }
 
@@ -84,13 +80,21 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
       return;
     }
 
-    // Phase 13: quantity/stock isn't tracked or shown this version — a
-    // new item always starts at 0 (backend still requires a value on
-    // create); editing an item forwards its real existing quantity
-    // through unchanged (never resets an already-billed item's actual
-    // stock to 0), same "hide in UI, keep enforcing underneath" pattern
-    // already used for name's immutability.
-    final quantity = isEditing ? widget.item!.quantity : 0;
+    final quantityText = _quantityController.text.trim();
+    if (quantityText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('सारी जानकारी भरें')),
+      );
+      return;
+    }
+
+    final quantity = int.tryParse(quantityText);
+    if (quantity == null || quantity < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('सही मात्रा डालें')),
+      );
+      return;
+    }
 
     setState(() => _isSaving = true);
 
@@ -145,7 +149,13 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
 
     try {
       await ref.read(deleteItemProvider(widget.item!.id).future);
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        // Invalidate the inventory list so it no longer shows the deleted item
+        ref.invalidate(inventoryItemsProvider);
+        // Pop twice: once from add_edit_item (back to detail), then from detail (back to list)
+        Navigator.of(context).pop();
+        Navigator.of(context).pop();
+      }
     } catch (e) {
       // Backend maps the onDelete: Restrict FK failure (item has been
       // billed before) to 409 { error: 'ITEM_HAS_BILLS' } specifically
@@ -216,16 +226,13 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
                 ),
               const SizedBox(height: 20),
 
-              // Phase 13: quantity/stock hidden from the UI for launch —
-              // commented out, not removed (backend/provider/repo all
-              // still work underneath; this is a quick revert later).
-              // FieldWithMic(
-              //   label: Strings.itemQuantity,
-              //   controller: _quantityController,
-              //   keyboardType: TextInputType.number,
-              //   isNumeric: true,
-              // ),
-              // const SizedBox(height: 20),
+              FieldWithMic(
+                label: Strings.itemQuantity,
+                controller: _quantityController,
+                keyboardType: TextInputType.number,
+                isNumeric: true,
+              ),
+              const SizedBox(height: 20),
 
               // Price field
               FieldWithMic(

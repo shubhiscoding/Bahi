@@ -44,7 +44,12 @@ class _BillItemPickerState extends ConsumerState<BillItemPicker> {
     final created = await Navigator.of(context).push<InventoryItem>(
       MaterialPageRoute(builder: (_) => const AddEditItemScreen()),
     );
-    if (created != null) widget.onSelected(created);
+    if (created != null) {
+      widget.onSelected(created);
+      // Invalidate the inventory list so other screens (e.g. inventory detail)
+      // immediately see the new item without restarting the app
+      ref.invalidate(inventoryItemsProvider);
+    }
   }
 
   @override
