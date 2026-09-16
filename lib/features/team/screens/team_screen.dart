@@ -532,6 +532,7 @@ class _MemberCard extends ConsumerWidget {
 
     try {
       await ref.read(updateProfileProvider(newName).future);
+      ref.invalidate(currentUserProfileProvider);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

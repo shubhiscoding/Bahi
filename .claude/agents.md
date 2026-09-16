@@ -145,6 +145,14 @@
 
 ### Rule: Every change must be tested locally before touching prod
 
+### 5.0 Unit & Integration Tests
+- **Every new feature must include tests** (minimum: unit tests for providers, services, and critical logic)
+- **Test requirement:** Don't submit a PR or commit without tests for new features
+- Test location: `test/features/*/` for Flutter (mirroring `lib/features/` structure)
+- Test naming: `*_test.dart` for files, `test('description', () => {...})` for test cases
+- Backend tests: should mirror frontend pattern in `backend/src/__tests__/` (create if doesn't exist)
+- Tests verify: correct API calls, data transformation, error handling, state invalidation
+
 #### 5.1 Local Testing Checklist
 - [ ] Change is made on local branch
 - [ ] Schema changes are applied to local DB (`bahi_dev`)
