@@ -61,11 +61,17 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
  * Upserts the current user's profile row from JWT claims.
  * Called by POST /auth/sync right after every sign-in — replaces the old
  * Postgres-trigger-based profile creation from the client's perspective.
+ *
+ * fullName is seeded from the JWT (Google) ONLY on first creation — never
+ * on update. Users can edit their name afterward (PUT /auth/profile,
+ * profileService.updateProfile), and every sign-in previously called this
+ * same upsert, silently reverting any manual edit back to the Google name
+ * on the very next sync. `update: {}` intentionally touches nothing.
  */
 export async function upsertProfileFromAuth(user: AuthenticatedUser) {
   return prisma.profile.upsert({
     where: { id: user.id },
-    update: { fullName: user.fullName },
+    update: {},
     create: { id: user.id, fullName: user.fullName },
   });
 }

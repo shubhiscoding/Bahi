@@ -8,9 +8,12 @@ import '../../../core/providers/text_scale_provider.dart';
 import '../../../core/services/update_service.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/name_formatter.dart';
+import '../../../core/utils/offline_guard.dart';
 import '../../../core/widgets/offline_banner.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../business/providers/business_providers.dart';
 import '../../buyers/screens/buyers_list_screen.dart';
+import '../../team/providers/team_providers.dart';
 import 'inventory_list_screen.dart';
 import '../../team/screens/team_screen.dart';
 
@@ -276,22 +279,83 @@ class _SettingsSheet extends ConsumerWidget {
             const _TextSizeRow(),
             const SizedBox(height: 16),
 
-            // Logout
+            // Logout — normal (non-danger) button; it's a routine action,
+            // not a destructive one.
             ElevatedButton.icon(
               onPressed: () async {
                 Navigator.of(context).pop();
                 await ref.read(signOutProvider.future);
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.danger,
-              ),
               icon: const Icon(Icons.logout, size: 24),
               label: Text(Strings.logout),
+            ),
+
+            // Delete Business — owner-only, danger-styled, placed below
+            // logout since it's the rarer/more destructive action.
+            Consumer(
+              builder: (context, ref, _) {
+                final isOwner = ref.watch(currentUserRoleProvider).value == 'owner';
+                final business = ref.watch(currentBusinessProvider).value;
+                if (!isOwner || business == null) return const SizedBox.shrink();
+
+                return Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: OutlinedButton.icon(
+                    onPressed: () => _handleDeleteBusiness(context, ref, business.id),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.danger,
+                      side: const BorderSide(color: AppColors.danger),
+                    ),
+                    icon: const Icon(Icons.delete_outline, size: 24),
+                    label: const Text('व्यवसाय हटाएँ'),
+                  ),
+                );
+              },
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _handleDeleteBusiness(BuildContext context, WidgetRef ref, String businessId) async {
+    if (!await ensureOnline(context)) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('व्यवसाय हटाएँ?'),
+        content: const Text(
+          '⚠️ एक बार हटाने के बाद, आप इस व्यवसाय और इसके डेटा तक नहीं पहुँच सकेंगे। कृपया सावधानी बरतें।',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(Strings.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'हटाएँ',
+              style: TextStyle(color: AppColors.danger),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(deleteBusinessProvider(businessId).future);
+      if (context.mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+        );
+      }
+    }
   }
 }
 

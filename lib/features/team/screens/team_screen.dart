@@ -10,6 +10,7 @@ import '../../../core/utils/invite_share.dart';
 import '../../../core/utils/name_formatter.dart';
 import '../../../core/utils/offline_guard.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../auth/repositories/auth_repository.dart';
 import '../../business/providers/business_providers.dart';
 import '../providers/dev_test_role_provider.dart';
 import '../providers/team_providers.dart';
@@ -19,49 +20,6 @@ import '../providers/team_providers.dart';
 /// owner-only remove.
 class TeamScreen extends ConsumerWidget {
   const TeamScreen({super.key});
-
-  Future<void> _handleDeleteBusiness(BuildContext context, WidgetRef ref, String businessId) async {
-    final isOnline = ref.watch(isOnlineProvider).value ?? true;
-    if (!isOnline) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(Strings.connectToInternet)),
-      );
-      return;
-    }
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('व्यवसाय हटाएँ?'),
-        content: const Text('⚠️ एक बार हटाने के बाद, आप इस व्यवसाय और इसके डेटा तक नहीं पहुँच सकेंगे। कृपया सावधानी बरतें।'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(Strings.cancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(
-              'हटाएँ',
-              style: TextStyle(color: AppColors.danger),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      await ref.read(deleteBusinessProvider(businessId).future);
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('त्रुटि: ${e.toString()}')),
-        );
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -73,31 +31,6 @@ class TeamScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: isOwner && businessAsync.value != null
-          ? AppBar(
-              actions: [
-                PopupMenuButton(
-                  onSelected: (value) {
-                    if (value == 'delete' && businessAsync.value != null) {
-                      _handleDeleteBusiness(context, ref, businessAsync.value!.id);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete_outline, color: AppColors.danger, size: 20),
-                          SizedBox(width: 12),
-                          Text('व्यवसाय हटाएँ', style: TextStyle(color: AppColors.danger)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            )
-          : null,
       body: Column(
         children: [
           if (isLocalBackend) const _DevRoleSwitcher(),
@@ -409,6 +342,65 @@ class _InviteCodeSheetState extends ConsumerState<_InviteCodeSheet> {
   }
 }
 
+/// Dialog content for editing the current user's name — a dedicated
+/// StatefulWidget so the TextEditingController's dispose() is tied to this
+/// widget's own Element lifecycle (via Flutter's State.dispose), not to a
+/// controller created/disposed manually in the calling function. Manually
+/// disposing a controller the instant showDialog's Future resolves (before
+/// the dialog's closing transition/focus-teardown finishes) is a known
+/// trigger for a "InheritedElement debugDeactivated: _dependents.isEmpty"
+/// assertion — this sidesteps it entirely.
+class _EditNameDialog extends StatefulWidget {
+  final String initialName;
+
+  const _EditNameDialog({required this.initialName});
+
+  @override
+  State<_EditNameDialog> createState() => _EditNameDialogState();
+}
+
+class _EditNameDialogState extends State<_EditNameDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialName);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('नाम बदलें'),
+      content: TextField(
+        controller: _controller,
+        decoration: const InputDecoration(hintText: 'अपना नाम दर्ज करें'),
+        autofocus: true,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(null),
+          child: Text(Strings.cancel),
+        ),
+        TextButton(
+          onPressed: () {
+            final trimmed = _controller.text.trim();
+            if (trimmed.isEmpty) return;
+            Navigator.of(context).pop(trimmed);
+          },
+          child: const Text('सहेजें'),
+        ),
+      ],
+    );
+  }
+}
+
 class _MemberCard extends ConsumerWidget {
   final BusinessMember member;
   final bool isCurrentUserOwner;
@@ -499,40 +491,21 @@ class _MemberCard extends ConsumerWidget {
   Future<void> _handleEditName(BuildContext context, WidgetRef ref) async {
     if (!await ensureOnline(context)) return;
 
-    final nameController = TextEditingController(text: member.fullName);
-
     final newName = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('नाम बदलें'),
-        content: TextField(
-          controller: nameController,
-          decoration: const InputDecoration(hintText: 'अपना नाम दर्ज करें'),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(null),
-            child: Text(Strings.cancel),
-          ),
-          TextButton(
-            onPressed: () {
-              final trimmed = nameController.text.trim();
-              if (trimmed.isEmpty) return;
-              Navigator.of(ctx).pop(trimmed);
-            },
-            child: const Text('सहेजें'),
-          ),
-        ],
-      ),
+      builder: (ctx) => _EditNameDialog(initialName: member.fullName),
     );
 
-    nameController.dispose();
     if (newName == null || newName.isEmpty) return;
 
     try {
-      await ref.read(updateProfileProvider(newName).future);
-      ref.invalidate(currentUserProfileProvider);
+      // Plain repository call (not a Riverpod provider) — see
+      // AuthRepository.updateProfileName's doc comment for why.
+      await AuthRepository.updateProfileName(newName);
+      if (context.mounted) {
+        ref.invalidate(currentUserProfileProvider);
+        ref.invalidate(teamMembersProvider);
+      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

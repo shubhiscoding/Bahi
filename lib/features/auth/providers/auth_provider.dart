@@ -108,14 +108,3 @@ final currentUserProfileProvider = FutureProvider<User?>((ref) async {
     fromJson: User.fromJson,
   );
 });
-
-/// Updates the current user's profile name (PUT /auth/profile).
-/// Caller must invalidate currentUserProfileProvider after this completes.
-final updateProfileProvider =
-    FutureProvider.autoDispose.family<User, String>((ref, fullName) async {
-  final response = await ApiClient.instance.put(
-    '/auth/profile',
-    data: {'fullName': fullName},
-  );
-  return User.fromJson(response.data);
-});
