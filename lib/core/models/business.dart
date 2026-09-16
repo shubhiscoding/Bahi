@@ -3,12 +3,14 @@ class Business {
   final String name;
   final String ownerId;
   final DateTime createdAt;
+  final DateTime? deletedAt;
 
   Business({
     required this.id,
     required this.name,
     required this.ownerId,
     required this.createdAt,
+    this.deletedAt,
   });
 
   // Backend (Node/Express + Prisma) returns camelCase JSON.
@@ -22,6 +24,9 @@ class Business {
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'])
           : DateTime.now(),
+      deletedAt: json['deletedAt'] != null
+          ? DateTime.parse(json['deletedAt'])
+          : null,
     );
   }
 
@@ -30,6 +35,7 @@ class Business {
         'name': name,
         'ownerId': ownerId,
         'createdAt': createdAt.toIso8601String(),
+        if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
       };
 }
 

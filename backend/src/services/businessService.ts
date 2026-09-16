@@ -101,15 +101,19 @@ export const businessService = {
       where: { userId },
       include: { business: true },
     });
-    return memberships.map((m) => m.business);
+    return memberships.map((m) => m.business).filter((b) => !b.deletedAt);
   },
 
   async getById(businessId: string) {
-    return prisma.business.findUnique({ where: { id: businessId } });
+    const business = await prisma.business.findUnique({ where: { id: businessId } });
+    return business?.deletedAt ? null : business;
   },
 
   async delete(businessId: string) {
-    await prisma.business.delete({ where: { id: businessId } });
+    await prisma.business.update({
+      where: { id: businessId },
+      data: { deletedAt: new Date() },
+    });
   },
 
   async listMembers(businessId: string) {

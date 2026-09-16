@@ -49,4 +49,11 @@ class BusinessRepository {
     final response = await ApiClient.instance.post('/businesses/$businessId/invite-code');
     return InviteCode.fromJson(response.data);
   }
+
+  /// Soft-deletes the business (owner-only operation). Business is marked
+  /// as deleted in DB but data is retained for compliance. User is sent
+  /// back to create/join screen.
+  static Future<void> deleteBusiness(String businessId) async {
+    await ApiClient.instance.delete('/businesses/$businessId');
+  }
 }

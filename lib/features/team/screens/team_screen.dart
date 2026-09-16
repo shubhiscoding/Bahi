@@ -20,6 +20,49 @@ import '../providers/team_providers.dart';
 class TeamScreen extends ConsumerWidget {
   const TeamScreen({super.key});
 
+  Future<void> _handleDeleteBusiness(BuildContext context, WidgetRef ref, String businessId) async {
+    final isOnline = ref.watch(isOnlineProvider).value ?? true;
+    if (!isOnline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(Strings.connectToInternet)),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('व्यवसाय हटाएँ?'),
+        content: const Text('⚠️ एक बार हटाने के बाद, आप इस व्यवसाय और इसके डेटा तक नहीं पहुँच सकेंगे। कृपया सावधानी बरतें।'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(Strings.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'हटाएँ',
+              style: TextStyle(color: AppColors.danger),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(deleteBusinessProvider(businessId).future);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final membersAsync = ref.watch(teamMembersProvider);
@@ -30,6 +73,31 @@ class TeamScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: isOwner && businessAsync.value != null
+          ? AppBar(
+              actions: [
+                PopupMenuButton(
+                  onSelected: (value) {
+                    if (value == 'delete' && businessAsync.value != null) {
+                      _handleDeleteBusiness(context, ref, businessAsync.value!.id);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outline, color: AppColors.danger, size: 20),
+                          SizedBox(width: 12),
+                          Text('व्यवसाय हटाएँ', style: TextStyle(color: AppColors.danger)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : null,
       body: Column(
         children: [
           if (isLocalBackend) const _DevRoleSwitcher(),
@@ -428,6 +496,51 @@ class _MemberCard extends ConsumerWidget {
     }
   }
 
+  Future<void> _handleEditName(BuildContext context, WidgetRef ref) async {
+    if (!await ensureOnline(context)) return;
+
+    final nameController = TextEditingController(text: member.fullName);
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('नाम बदलें'),
+        content: TextField(
+          controller: nameController,
+          decoration: const InputDecoration(hintText: 'अपना नाम दर्ज करें'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: Text(Strings.cancel),
+          ),
+          TextButton(
+            onPressed: () {
+              final trimmed = nameController.text.trim();
+              if (trimmed.isEmpty) return;
+              Navigator.of(ctx).pop(trimmed);
+            },
+            child: const Text('सहेजें'),
+          ),
+        ],
+      ),
+    );
+
+    nameController.dispose();
+    if (newName == null || newName.isEmpty) return;
+
+    try {
+      await ref.read(updateProfileProvider(newName).future);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final avatarColor = AppColors.avatarColorForName(member.fullName);
@@ -478,6 +591,16 @@ class _MemberCard extends ConsumerWidget {
                 icon: Icon(
                   Icons.person_remove_outlined,
                   color: isOnline ? AppColors.danger : AppColors.inkSoft,
+                ),
+              ),
+            // Edit name action on the current user's OWN row
+            if (isCurrentUser)
+              IconButton(
+                onPressed: isOnline ? () => _handleEditName(context, ref) : null,
+                icon: Icon(
+                  Icons.edit,
+                  color: isOnline ? AppColors.primary : AppColors.inkSoft,
+                  size: 20,
                 ),
               ),
             // Leave action on the current user's OWN row — owner cannot

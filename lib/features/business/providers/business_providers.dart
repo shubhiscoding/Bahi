@@ -55,3 +55,13 @@ final generateInviteCodeProvider =
     FutureProvider.autoDispose.family<InviteCode, String>((ref, businessId) {
   return BusinessRepository.generateInviteCode(businessId);
 });
+
+/// Soft-deletes the current business (owner-only). On success, invalidates
+/// currentBusinessProvider and userBusinessesProvider so the user is sent
+/// back to create/join screen.
+final deleteBusinessProvider =
+    FutureProvider.autoDispose.family<void, String>((ref, businessId) async {
+  await BusinessRepository.deleteBusiness(businessId);
+  ref.invalidate(userBusinessesProvider);
+  ref.invalidate(currentBusinessProvider);
+});
