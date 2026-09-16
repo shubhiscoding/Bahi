@@ -213,6 +213,13 @@
 - ✅ Logs are retained for ≥90 days (compliance requirement)
 - ✅ Soft deletes allow data recovery for compliance audits
 
+### 6.7 Local Development Configuration
+- ❌ **NEVER commit local-only config changes** (e.g. swapping backend URLs, API keys, database configs to local/dev)
+- Local config changes belong in `.env`, `.env.local`, or gitignored files only
+- Always verify a file is NOT gitignored before committing it
+- Before committing: check that the change is prod-appropriate (would you want this deployed?)
+- If you make a local config change by accident, revert immediately with `git reset --soft HEAD~1` + restore the file
+
 ---
 
 ## 7. DECISION FLOWCHART — WHEN IN DOUBT
