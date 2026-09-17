@@ -8,8 +8,18 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Used by `prisma migrate`/`db push` only (never by the running app).
+  // DATABASE_URL is the transaction pooler (port 6543, pgbouncer=true) —
+  // fine for the app's runtime queries, but its pgbouncer transaction
+  // mode breaks the schema-engine's own connection handshake (migrate
+  // commands hang indefinitely against it, confirmed while setting up
+  // this migration history). DIRECT_URL points at the session pooler
+  // (same host, port 5432, no pgbouncer param) instead, which the
+  // direct db.<ref>.supabase.co host can't be used for from this
+  // network (IPv6-only, no route) — see backend/.env's other comment.
+  directUrl = env("DIRECT_URL")
 }
 
 // profiles.id has a DB-level FK to auth.users(id) (see init_schema.sql),
