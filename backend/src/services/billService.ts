@@ -80,10 +80,22 @@ export const billService = {
       // unified concept. Missing this was the exact bug reported: a
       // bill shows as paid but its जमा list has no matching deposit.
       const deposit = await tx.deposit.create({
-        data: { businessId, buyerId: input.buyerId, amount: total, recordedBy: createdBy },
+        data: {
+          businessId,
+          buyerId: input.buyerId,
+          amount: total,
+          recordedBy: createdBy,
+          paidAt: bill.billDate,
+        },
       });
       await tx.billPayment.create({
-        data: { billId: bill.id, amount: total, recordedBy: createdBy, depositId: deposit.id },
+        data: {
+          billId: bill.id,
+          amount: total,
+          recordedBy: createdBy,
+          depositId: deposit.id,
+          paidAt: bill.billDate,
+        },
       });
     }
 
@@ -99,7 +111,10 @@ export const billService = {
       include: {
         buyer: true,
         creator: true,
-        payments: { orderBy: { paidAt: 'asc' }, include: { recorder: true } },
+        payments: {
+          orderBy: { paidAt: 'asc' },
+          include: { recorder: true, deposit: { select: { paidAt: true } } },
+        },
         items: { include: { item: true } },
       },
     });
@@ -119,12 +134,16 @@ export const billService = {
       // Flatten the recorder join — same pattern as priceHistory/editLog
       // — so the bill detail screen can list who recorded each payment
       // without a separate lookup.
-      payments: bill.payments.map((p) => ({
-        id: p.id,
-        amount: p.amount,
-        paidAt: p.paidAt,
-        recordedByName: p.recorder.fullName,
-      })),
+      payments: bill.payments
+        .map((p) => ({
+          id: p.id,
+          amount: p.amount,
+          // A deposit is the canonical timestamp for a payment event.
+          // Keep the payment timestamp as fallback for legacy rows without one.
+          paidAt: p.deposit?.paidAt ?? p.paidAt,
+          recordedByName: p.recorder.fullName,
+        }))
+        .sort((a, b) => a.paidAt.getTime() - b.paidAt.getTime()),
     };
   },
 
@@ -162,7 +181,13 @@ export const billService = {
    * screen recorded it. A single-bill payment is a Deposit with exactly
    * one BillPayment row.
    */
-  async addPayment(businessId: string, billId: string, recordedBy: string, amount: number) {
+  async addPayment(
+    businessId: string,
+    billId: string,
+    recordedBy: string,
+    amount: number,
+    paidAt?: Date,
+  ) {
     const bill = await prisma.bill.findFirst({
       where: { id: billId, businessId },
       include: { payments: true },
@@ -174,11 +199,12 @@ export const billService = {
     if (amount > due) throw new Error('OVERPAYMENT');
 
     return prisma.$transaction(async (tx) => {
+      const paymentDate = paidAt ?? new Date();
       const deposit = await tx.deposit.create({
-        data: { businessId, buyerId: bill.buyerId, amount, recordedBy },
+        data: { businessId, buyerId: bill.buyerId, amount, recordedBy, paidAt: paymentDate },
       });
       return tx.billPayment.create({
-        data: { billId, amount, recordedBy, depositId: deposit.id },
+        data: { billId, amount, recordedBy, depositId: deposit.id, paidAt: paymentDate },
       });
     });
   },
@@ -200,7 +226,13 @@ export const billService = {
    * share that single depositId, so this shows up as one deposit event,
    * not N separate ones.
    */
-  async recordBuyerPayment(businessId: string, buyerId: string, recordedBy: string, amount: number) {
+  async recordBuyerPayment(
+    businessId: string,
+    buyerId: string,
+    recordedBy: string,
+    amount: number,
+    paidAt?: Date,
+  ) {
     const bills = await prisma.bill.findMany({
       where: { businessId, buyerId },
       include: { payments: true },
@@ -214,8 +246,9 @@ export const billService = {
     if (amount > totalDue) throw new Error('OVERPAYMENT');
 
     return prisma.$transaction(async (tx) => {
+      const paymentDate = paidAt ?? new Date();
       const deposit = await tx.deposit.create({
-        data: { businessId, buyerId, amount, recordedBy },
+        data: { businessId, buyerId, amount, recordedBy, paidAt: paymentDate },
       });
 
       let remaining = amount;
@@ -224,7 +257,13 @@ export const billService = {
         if (remaining <= 0) break;
         const allocation = Math.min(remaining, bill.due);
         const payment = await tx.billPayment.create({
-          data: { billId: bill.id, amount: allocation, recordedBy, depositId: deposit.id },
+          data: {
+            billId: bill.id,
+            amount: allocation,
+            recordedBy,
+            depositId: deposit.id,
+            paidAt: paymentDate,
+          },
         });
         created.push(payment);
         remaining -= allocation;

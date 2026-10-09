@@ -11,9 +11,8 @@ import '../providers/buyer_providers.dart';
 
 /// "Sold to" buyer picker (Phase 8 §E) — dropdown + search over the
 /// business's buyers (already recency-sorted server-side: most recently
-/// billed first), a bounded-height scrollable list so the first ~4 show
-/// without scrolling and the rest are one scroll away, and a visually
-/// distinct trailing "add new buyer" row that opens a modal (per spec —
+/// billed first), a bounded-height scrollable list and a visually distinct
+/// "add new buyer" row pinned below the results that opens a modal (per spec —
 /// not the unit picker's inline mic/tick/cross row).
 ///
 /// Collapses to a single row showing just the selected name once a buyer
@@ -21,7 +20,8 @@ import '../providers/buyer_providers.dart';
 /// The add-new row is ALWAYS present while expanded, even with zero
 /// search matches (previously it vanished behind a plain "not found"
 /// message — a shopkeeper searching for someone not yet added must still
-/// be able to add them without clearing the search first).
+/// be able to add them without clearing the search first). The add-new row
+/// remains visible while the results scroll.
 class BuyerPicker extends ConsumerStatefulWidget {
   final Buyer? selectedBuyer;
   final ValueChanged<Buyer> onSelected;
@@ -102,38 +102,40 @@ class _BuyerPickerState extends ConsumerState<BuyerPicker> {
                     .toList();
             final showNoResults = filtered.isEmpty && _searchQuery.isNotEmpty;
 
-            // Bounded height so ~4 rows show by default; the rest of the
-            // list (and the add-new row) is one scroll away — matches
-            // "top 4, then scrollable" from the spec without needing to
-            // slice the list itself. The add-new row is always the last
-            // child, never conditionally omitted.
+            // Keep the add-new row pinned below a bounded, independently
+            // scrolling results list.
             return Container(
-              constraints: const BoxConstraints(maxHeight: 4.5 * 64),
+              height: 4.5 * 64,
               decoration: BoxDecoration(
                 border: Border.all(color: AppColors.border),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: ListView(
-                shrinkWrap: true,
+              child: Column(
                 children: [
-                  for (final buyer in filtered) ...[
-                    _BuyerRow(
-                      buyer: buyer,
-                      isSelected: widget.selectedBuyer?.id == buyer.id,
-                      onTap: () => _handleSelect(buyer),
+                  Expanded(
+                    child: ListView(
+                      padding: EdgeInsets.zero,
+                      children: [
+                        for (final buyer in filtered) ...[
+                          _BuyerRow(
+                            buyer: buyer,
+                            isSelected: widget.selectedBuyer?.id == buyer.id,
+                            onTap: () => _handleSelect(buyer),
+                          ),
+                          Divider(height: 1, color: AppColors.border),
+                        ],
+                        if (showNoResults)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: Text(
+                              Strings.noBuyersFound,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.inkSoft),
+                            ),
+                          ),
+                      ],
                     ),
-                    Divider(height: 1, color: AppColors.border),
-                  ],
-                  if (showNoResults) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: Text(
-                        Strings.noBuyersFound,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.inkSoft),
-                      ),
-                    ),
-                    Divider(height: 1, color: AppColors.border),
-                  ],
+                  ),
+                  Divider(height: 1, color: AppColors.border),
                   _AddNewBuyerRow(onTap: _handleAddNew),
                 ],
               ),
@@ -244,8 +246,8 @@ class _BuyerRow extends StatelessWidget {
   }
 }
 
-/// Visually distinct from buyer rows (spec: "a separate looking button in
-/// scroll too") — accent-tinted background + a bold add icon.
+/// Visually distinct from buyer rows — accent-tinted background + a bold
+/// add icon, pinned at the bottom of the visible list.
 class _AddNewBuyerRow extends StatelessWidget {
   final VoidCallback onTap;
 

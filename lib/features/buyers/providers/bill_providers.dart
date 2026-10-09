@@ -88,13 +88,14 @@ final billsForBuyerProvider =
 });
 
 final addPaymentProvider =
-    FutureProvider.autoDispose.family<void, ({String billId, double amount})>((ref, input) async {
+    FutureProvider.autoDispose.family<void, ({String billId, double amount, DateTime paidAt})>((ref, input) async {
   final business = await ref.watch(currentBusinessProvider.future);
   if (business == null) throw Exception('No business selected');
   await BillRepository.addPayment(
     businessId: business.id,
     billId: input.billId,
     amount: input.amount,
+    paidAt: input.paidAt,
   );
   // A payment changes this bill's own paid/due (billDetailProvider), the
   // buyer's totalPaid/totalDue (buyerDetailProvider), and that bill's
@@ -113,13 +114,14 @@ final addPaymentProvider =
 /// Buyer-level "record payment" (Phase 9) — one amount, allocated
 /// server-side across the buyer's outstanding bills oldest-first.
 final recordBuyerPaymentProvider =
-    FutureProvider.autoDispose.family<void, ({String buyerId, double amount})>((ref, input) async {
+    FutureProvider.autoDispose.family<void, ({String buyerId, double amount, DateTime paidAt})>((ref, input) async {
   final business = await ref.watch(currentBusinessProvider.future);
   if (business == null) throw Exception('No business selected');
   await BillRepository.recordBuyerPayment(
     businessId: business.id,
     buyerId: input.buyerId,
     amount: input.amount,
+    paidAt: input.paidAt,
   );
   // Touches every bill it allocated to, so the same broad refetch as
   // the per-bill payment path applies — every read of this data must

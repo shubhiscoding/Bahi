@@ -6,7 +6,7 @@ import { billService } from '../services/billService';
 import { depositService } from '../services/depositService';
 import { emitToBusiness } from '../sockets';
 import { asyncHandler } from '../utils/asyncHandler';
-import { isFiniteNonNegativeNumber } from '../utils/validation';
+import { isFiniteNonNegativeNumber, parseOptionalDateTime } from '../utils/validation';
 
 // Mounted at /businesses/:businessId/buyers — see index.ts
 export const buyerRoutes = Router({ mergeParams: true });
@@ -93,6 +93,8 @@ buyerRoutes.post(
   requireMembership,
   asyncHandler(async (req, res) => {
     const { amount } = req.body;
+    const paidAt = parseOptionalDateTime(req.body.paidAt);
+    if (paidAt === null) return res.status(400).json({ error: 'INVALID_PAID_AT' });
     if (!isFiniteNonNegativeNumber(amount) || Number(amount) <= 0) {
       return res.status(400).json({ error: 'INVALID_AMOUNT' });
     }
@@ -106,6 +108,7 @@ buyerRoutes.post(
         req.params.buyerId,
         req.user!.id,
         Number(amount),
+        paidAt,
       );
       for (const payment of payments) {
         emitToBusiness(req.params.businessId, 'bill:updated', { id: payment.billId });

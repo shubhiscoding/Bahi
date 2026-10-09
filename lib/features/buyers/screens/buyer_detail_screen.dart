@@ -42,6 +42,9 @@ class _BuyerDetailScreenState extends ConsumerState<BuyerDetailScreen> {
   Future<void> _pickCustomRange() async {
     final picked = await showDateRangePicker(
       context: context,
+      locale: const Locale('en', 'GB'),
+      fieldStartHintText: 'DD/MM/YY',
+      fieldEndHintText: 'DD/MM/YY',
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
       initialDateRange: _customRange,
@@ -57,7 +60,7 @@ class _BuyerDetailScreenState extends ConsumerState<BuyerDetailScreen> {
   /// Buyer-level "record payment" (Phase 9) — one amount, allocated
   /// server-side across this buyer's outstanding bills oldest-first.
   Future<void> _showRecordPaymentSheet(double maxAmount) async {
-    final amount = await showAmountInputSheet(
+    final payment = await showAmountInputSheet(
       context,
       title: Strings.recordPayment,
       hintText: Strings.paymentAmount,
@@ -65,11 +68,15 @@ class _BuyerDetailScreenState extends ConsumerState<BuyerDetailScreen> {
       initialValue: maxAmount,
     );
 
-    if (amount == null || amount <= 0) return;
+    if (payment == null || payment.amount <= 0) return;
     if (!await ensureOnline(context)) return;
     try {
       await ref.read(
-        recordBuyerPaymentProvider((buyerId: widget.buyer.id, amount: amount)).future,
+        recordBuyerPaymentProvider((
+          buyerId: widget.buyer.id,
+          amount: payment.amount,
+          paidAt: payment.paidAt,
+        )).future,
       );
     } catch (e) {
       if (mounted) {
@@ -465,7 +472,7 @@ class _DateRangeRow extends StatelessWidget {
     }
 
     final customLabel = value == _DateRange.custom && customRange != null
-        ? '${customRange!.start.day}/${customRange!.start.month} - ${customRange!.end.day}/${customRange!.end.month}'
+        ? '${formatDateDDMMYY(customRange!.start)} - ${formatDateDDMMYY(customRange!.end)}'
         : 'तारीख़ चुनें';
 
     return Wrap(
@@ -536,7 +543,7 @@ class _BillCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      formatAbsoluteHindi(bill.billDate),
+                      formatDateDDMMYY(bill.billDate),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.inkSoft),
                     ),
                   ],
@@ -606,7 +613,7 @@ class _DepositCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      formatAbsoluteHindi(deposit.paidAt),
+                      formatDateDDMMYY(deposit.paidAt),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.inkSoft),
                     ),
                   ],

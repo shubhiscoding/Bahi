@@ -7,6 +7,7 @@ import '../../../core/providers/connectivity_provider.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/services/write_retry.dart';
 import '../../../core/utils/offline_guard.dart';
+import '../../../core/utils/absolute_time.dart';
 import '../../../core/widgets/field_with_mic.dart';
 import '../providers/bill_providers.dart';
 import '../repositories/bill_repository.dart';
@@ -142,6 +143,8 @@ class _AddBillScreenState extends ConsumerState<AddBillScreen> {
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
+      locale: const Locale('en', 'GB'),
+      fieldHintText: 'DD/MM/YY',
       initialDate: _billDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 1)),
@@ -234,7 +237,13 @@ class _AddBillScreenState extends ConsumerState<AddBillScreen> {
       // from the bill detail screen, so it's not rolled back.
       if (partialAmount != null) {
         try {
-          await ref.read(addPaymentProvider((billId: bill.id, amount: partialAmount)).future);
+          await ref.read(
+            addPaymentProvider((
+              billId: bill.id,
+              amount: partialAmount,
+              paidAt: bill.billDate,
+            )).future,
+          );
         } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -306,26 +315,46 @@ class _AddBillScreenState extends ConsumerState<AddBillScreen> {
               ),
               const SizedBox(height: 24),
 
-              Text(Strings.billDate, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 8),
               InkWell(
                 onTap: _pickDate,
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  height: 56,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  constraints: const BoxConstraints(minHeight: 72),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.border),
+                    color: AppColors.accentSoft,
+                    border: Border.all(color: AppColors.accent, width: 1.5),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.calendar_today, size: 20, color: AppColors.inkSoft),
-                      const SizedBox(width: 12),
-                      Text(
-                        '${_billDate.day}/${_billDate.month}/${_billDate.year}',
-                        style: Theme.of(context).textTheme.bodyLarge,
+                      Icon(Icons.calendar_month, size: 24, color: AppColors.inkPrimary),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              Strings.billDate,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppColors.inkSoft,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            Text(
+                              formatDateDDMMYY(_billDate),
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: AppColors.inkPrimary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                          ],
+                        ),
                       ),
+                      const SizedBox(width: 8),
+                      Icon(Icons.edit_calendar, size: 20, color: AppColors.inkPrimary),
                     ],
                   ),
                 ),
@@ -361,11 +390,18 @@ class _AddBillScreenState extends ConsumerState<AddBillScreen> {
               ),
               const SizedBox(height: 24),
 
+              Text(
+                'भुगतान की स्थिति',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
                     child: _PaidToggleOption(
                       label: Strings.unpaid,
+                      color: AppColors.danger,
+                      icon: Icons.pending_actions,
                       isSelected: _paymentChoice == _PaymentChoice.unpaid,
                       onTap: () => setState(() => _paymentChoice = _PaymentChoice.unpaid),
                     ),
@@ -374,6 +410,8 @@ class _AddBillScreenState extends ConsumerState<AddBillScreen> {
                   Expanded(
                     child: _PaidToggleOption(
                       label: Strings.partialPayment,
+                      color: const Color(0xFF8A5B08),
+                      icon: Icons.payments_outlined,
                       isSelected: _paymentChoice == _PaymentChoice.partial,
                       onTap: () => setState(() => _paymentChoice = _PaymentChoice.partial),
                     ),
@@ -382,6 +420,8 @@ class _AddBillScreenState extends ConsumerState<AddBillScreen> {
                   Expanded(
                     child: _PaidToggleOption(
                       label: Strings.paid,
+                      color: AppColors.success,
+                      icon: Icons.task_alt,
                       isSelected: _paymentChoice == _PaymentChoice.paid,
                       onTap: () => setState(() => _paymentChoice = _PaymentChoice.paid),
                     ),
@@ -661,10 +701,18 @@ class _SummaryLineRow extends StatelessWidget {
 
 class _PaidToggleOption extends StatelessWidget {
   final String label;
+  final Color color;
+  final IconData icon;
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _PaidToggleOption({required this.label, required this.isSelected, required this.onTap});
+  const _PaidToggleOption({
+    required this.label,
+    required this.color,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -672,19 +720,29 @@ class _PaidToggleOption extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        height: 48,
-        alignment: Alignment.center,
+        height: 76,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : AppColors.surface,
+          color: color.withOpacity(isSelected ? 0.18 : 0.08),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: isSelected ? AppColors.primary : AppColors.border),
+          border: Border.all(color: color.withOpacity(isSelected ? 1 : 0.55), width: isSelected ? 2 : 1),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : AppColors.inkPrimary,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(isSelected ? Icons.check_circle : icon, size: 20, color: color),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppColors.inkPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          ],
         ),
       ),
     );

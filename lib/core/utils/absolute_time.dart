@@ -1,17 +1,29 @@
-/// Formats a DateTime as an absolute Hindi-numeral-free timestamp
-/// ("29 अगस्त 2026, 4:30 pm") — used on the item detail screen, where the
-/// exact time matters (as opposed to relative_time.dart's "2 घंटे पहले",
-/// used on the list card).
+/// Formats a DateTime as a local timestamp ("29/08/26, 4:30 शाम") for detail
+/// screens where the exact time matters. List cards use relative time instead.
 String formatAbsoluteHindi(DateTime dateTime) {
-  const months = [
-    'जनवरी', 'फ़रवरी', 'मार्च', 'अप्रैल', 'मई', 'जून',
-    'जुलाई', 'अगस्त', 'सितंबर', 'अक्टूबर', 'नवंबर', 'दिसंबर',
-  ];
-
-  final hour24 = dateTime.hour;
-  final period = hour24 < 12 ? 'am' : 'pm';
+  // API timestamps arrive in UTC. Format them in the device's local timezone
+  // so the displayed time matches when the shopkeeper performed the action.
+  final localDateTime = dateTime.toLocal();
+  final hour24 = localDateTime.hour;
+  final period = switch (hour24) {
+    < 4 => 'रात',
+    < 12 => 'सुबह',
+    12 => 'दोपहर',
+    < 17 => 'दोपहर',
+    < 20 => 'शाम',
+    _ => 'रात',
+  };
   final hour12 = hour24 % 12 == 0 ? 12 : hour24 % 12;
-  final minute = dateTime.minute.toString().padLeft(2, '0');
+  final minute = localDateTime.minute.toString().padLeft(2, '0');
 
-  return '${dateTime.day} ${months[dateTime.month - 1]} ${dateTime.year}, $hour12:$minute $period';
+  return '${formatDateDDMMYY(localDateTime)}, $hour12:$minute $period';
+}
+
+/// Formats a local date as zero-padded day/month/two-digit-year.
+String formatDateDDMMYY(DateTime dateTime) {
+  final localDateTime = dateTime.toLocal();
+  final day = localDateTime.day.toString().padLeft(2, '0');
+  final month = localDateTime.month.toString().padLeft(2, '0');
+  final year = (localDateTime.year % 100).toString().padLeft(2, '0');
+  return '$day/$month/$year';
 }

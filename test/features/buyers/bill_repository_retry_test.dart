@@ -70,6 +70,23 @@ void main() {
     ]);
   });
 
+  test('billDate is sent as UTC with an explicit Z, same instant as the local value', () async {
+    api.ok(_billJson);
+    final local = DateTime(2026, 10, 9, 14, 30); // 14:30 device-local
+
+    await BillRepository.createBill(
+      businessId: 'biz-1',
+      buyerId: 'buyer-1',
+      billDate: local,
+      items: [BillLineInput(itemId: 'item-1', quantity: 1, price: 10)],
+      markPaidNow: false,
+    );
+
+    final sent = api.requests.single.data['billDate'] as String;
+    expect(sent, endsWith('Z'));
+    expect(DateTime.parse(sent).isAtSameMomentAs(local), isTrue);
+  });
+
   test('two separate saves get two different keys', () async {
     api.ok(_billJson);
     api.ok({..._billJson, 'id': 'bill-2'});

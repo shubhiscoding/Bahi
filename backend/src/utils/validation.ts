@@ -20,3 +20,11 @@ export function isNonNegativeInteger(value: unknown): boolean {
   const n = Number(value);
   return Number.isInteger(n) && n >= 0;
 }
+
+/** Parses an optional ISO date-time; returns null for a supplied invalid value. */
+export function parseOptionalDateTime(value: unknown): Date | undefined | null {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value.trim() === '') return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
