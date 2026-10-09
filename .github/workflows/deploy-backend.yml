@@ -33,6 +33,7 @@ jobs:
             # a $ or backtick) while writing the file.
             cat > .env << 'EOF'
             DATABASE_URL="${{ secrets.DATABASE_URL }}"
+            DIRECT_URL="${{ secrets.DIRECT_URL }}"
             SUPABASE_JWKS_URL="${{ secrets.SUPABASE_JWKS_URL }}"
             PORT="${{ secrets.PORT }}"
             EOF
@@ -48,6 +49,17 @@ jobs:
             git reset --hard origin/${{ github.event.inputs.branch }}
             npm install
             npm run build
+
+            # Applies any new prisma/migrations/*.sql not yet in prod's
+            # _prisma_migrations table. No-ops cleanly if there's nothing
+            # new (e.g. this exact deploy has no schema change) — safe to
+            # run on every deploy, not just ones that touch the schema.
+            # Uses DIRECT_URL (session pooler, port 5432): the transaction
+            # pooler DATABASE_URL uses (port 6543, pgbouncer=true) hangs
+            # the schema-engine's connection handshake — confirmed while
+            # setting up this migration history.
+            npx prisma migrate deploy
+
             pm2 restart bahi-backend
             pm2 save
             echo "Deployed $(git rev-parse --short HEAD) successfully"

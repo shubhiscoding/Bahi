@@ -1,6 +1,9 @@
 /// Hindi UI strings — code-mixed with familiar English terms
 /// Following design.md copy rules
 class Strings {
+  // Network — shown after a save timed out on every retry. English on purpose (copy as specified).
+  static const slowNetwork = 'Internet is slow, please try again later';
+
   // Auth
   static const signInGoogle = 'Google से साइन इन करें';
   static const signingIn = 'साइन इन हो रहे हैं...';

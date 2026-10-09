@@ -7,6 +7,7 @@ import '../../../core/models/price_history_point.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/absolute_time.dart';
 import '../../../core/utils/name_formatter.dart';
+import '../../../core/services/write_retry.dart';
 import '../../../core/widgets/field_with_mic.dart';
 import '../../team/providers/team_providers.dart';
 import '../providers/inventory_providers.dart';
@@ -32,6 +33,7 @@ class ItemDetailScreen extends ConsumerStatefulWidget {
 class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
   _PriceRange _range = _PriceRange.allTime;
   _ViewMode _viewMode = _ViewMode.chart;
+  bool _isAddingStock = false;
 
   /// "Add stock" CTA (Phase 8 §B) — a small bottom sheet with one numeric
   /// FieldWithMic. Pure quantity increment; doesn't touch price. The
@@ -77,6 +79,7 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     );
 
     if (quantity == null || quantity <= 0) return;
+    setState(() => _isAddingStock = true);
     try {
       await ref.read(addStockProvider((itemId: itemId, quantity: quantity)).future);
       if (mounted) {
@@ -87,9 +90,11 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+          SnackBar(content: Text(saveErrorMessage(e))),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isAddingStock = false);
     }
   }
 
@@ -144,9 +149,15 @@ class _ItemDetailScreenState extends ConsumerState<ItemDetailScreen> {
             _DetailCard(item: item, editorName: editorName),
             const SizedBox(height: 12),
             OutlinedButton.icon(
-              onPressed: () => _showAddStockSheet(item.id),
+              onPressed: _isAddingStock ? null : () => _showAddStockSheet(item.id),
               icon: const Icon(Icons.add_box, size: 22),
-              label: Text(Strings.addStock),
+              label: _isAddingStock
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(Strings.addStock),
             ),
             const SizedBox(height: 24),
             Row(

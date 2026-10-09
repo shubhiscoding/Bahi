@@ -23,69 +23,73 @@ function billWithDue<T extends { total: Prisma.Decimal | number; payments: { amo
 
 export const billService = {
   /**
-   * One transaction: create the bill + its line items, decrement each
-   * referenced item's stock, log one InventoryEditLog row per affected
-   * item (source: 'sale'), and optionally record an initial full payment.
-   * Every validation happens BEFORE the transaction starts, in the route
-   * (Phase 8 §D) — nothing here should ever partially apply.
+   * Runs inside the caller's transaction (see runIdempotent): create the
+   * bill + its line items, decrement each referenced item's stock, log one
+   * InventoryEditLog row per affected item (source: 'sale'), and optionally
+   * record an initial full payment. Every validation happens BEFORE the
+   * transaction starts, in the route (Phase 8 §D) — nothing here should
+   * ever partially apply.
    */
+  /** Non-idempotent convenience wrapper (seed script, internal callers). Routes use runIdempotent + createInTx. */
   async create(businessId: string, createdBy: string, input: CreateBillInput) {
+    return prisma.$transaction((tx) => this.createInTx(tx, businessId, createdBy, input));
+  },
+
+  async createInTx(tx: Prisma.TransactionClient, businessId: string, createdBy: string, input: CreateBillInput) {
     const total = input.items.reduce((sum, line) => sum + line.quantity * line.price, 0);
 
-    return prisma.$transaction(async (tx) => {
-      const bill = await tx.bill.create({
+    const bill = await tx.bill.create({
+      data: {
+        businessId,
+        buyerId: input.buyerId,
+        billDate: input.billDate,
+        total,
+        createdBy,
+      },
+    });
+
+    for (const line of input.items) {
+      await tx.billItem.create({
         data: {
-          businessId,
-          buyerId: input.buyerId,
-          billDate: input.billDate,
-          total,
-          createdBy,
+          billId: bill.id,
+          itemId: line.itemId,
+          quantity: line.quantity,
+          price: line.price,
         },
       });
 
-      for (const line of input.items) {
-        await tx.billItem.create({
-          data: {
-            billId: bill.id,
-            itemId: line.itemId,
-            quantity: line.quantity,
-            price: line.price,
-          },
-        });
-
-        const existing = await tx.inventoryItem.findUniqueOrThrow({ where: { id: line.itemId } });
-        const item = await tx.inventoryItem.update({
-          where: { id: line.itemId },
-          data: { quantity: { decrement: line.quantity }, updatedBy: createdBy, updatedAt: new Date() },
-        });
-        await tx.inventoryEditLog.create({
-          data: {
-            itemId: item.id,
-            editedBy: createdBy,
-            source: 'sale',
-            relatedBillId: bill.id,
-            changes: { quantity: { from: existing.quantity, to: item.quantity } },
-          },
-        });
-      }
-
-      if (input.markPaidNow) {
-        // Phase 10: this must wrap in a Deposit too — every payment,
-        // including the initial "mark paid now" at creation time, is one
-        // unified concept. Missing this was the exact bug reported: a
-        // bill shows as paid but its जमा list has no matching deposit.
-        const deposit = await tx.deposit.create({
-          data: { businessId, buyerId: input.buyerId, amount: total, recordedBy: createdBy },
-        });
-        await tx.billPayment.create({
-          data: { billId: bill.id, amount: total, recordedBy: createdBy, depositId: deposit.id },
-        });
-      }
-
-      return tx.bill.findUniqueOrThrow({
-        where: { id: bill.id },
-        include: { items: true, payments: true, buyer: true },
+      const existing = await tx.inventoryItem.findUniqueOrThrow({ where: { id: line.itemId } });
+      const item = await tx.inventoryItem.update({
+        where: { id: line.itemId },
+        data: { quantity: { decrement: line.quantity }, updatedBy: createdBy, updatedAt: new Date() },
       });
+      await tx.inventoryEditLog.create({
+        data: {
+          itemId: item.id,
+          editedBy: createdBy,
+          source: 'sale',
+          relatedBillId: bill.id,
+          changes: { quantity: { from: existing.quantity, to: item.quantity } },
+        },
+      });
+    }
+
+    if (input.markPaidNow) {
+      // Phase 10: this must wrap in a Deposit too — every payment,
+      // including the initial "mark paid now" at creation time, is one
+      // unified concept. Missing this was the exact bug reported: a
+      // bill shows as paid but its जमा list has no matching deposit.
+      const deposit = await tx.deposit.create({
+        data: { businessId, buyerId: input.buyerId, amount: total, recordedBy: createdBy },
+      });
+      await tx.billPayment.create({
+        data: { billId: bill.id, amount: total, recordedBy: createdBy, depositId: deposit.id },
+      });
+    }
+
+    return tx.bill.findUniqueOrThrow({
+      where: { id: bill.id },
+      include: { items: true, payments: true, buyer: true },
     });
   },
 

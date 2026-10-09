@@ -1,6 +1,9 @@
+import 'package:dio/dio.dart';
+
 import '../../../core/models/bill.dart';
 import '../../../core/services/api_client.dart';
 import '../../../core/services/local_cache_service.dart';
+import '../../../core/services/write_retry.dart';
 
 /// Line item input for creating a bill (Phase 8 §D/§F).
 class BillLineInput {
@@ -21,14 +24,20 @@ class BillRepository {
     required List<BillLineInput> items,
     required bool markPaidNow,
   }) async {
-    final response = await ApiClient.instance.post(
-      '/businesses/$businessId/bills',
-      data: {
-        'buyerId': buyerId,
-        'billDate': billDate.toIso8601String(),
-        'items': items.map((i) => i.toJson()).toList(),
-        'markPaidNow': markPaidNow,
-      },
+    // One key per save: every retry below reuses it, so a timed-out attempt
+    // that actually reached the server can't create a second bill.
+    final key = newIdempotencyKey();
+    final response = await retryOnNetworkTimeout(
+      () => ApiClient.instance.post(
+        '/businesses/$businessId/bills',
+        data: {
+          'buyerId': buyerId,
+          'billDate': billDate.toIso8601String(),
+          'items': items.map((i) => i.toJson()).toList(),
+          'markPaidNow': markPaidNow,
+        },
+        options: Options(headers: {idempotencyKeyHeader: key}),
+      ),
     );
     return Bill.fromJson(response.data);
   }

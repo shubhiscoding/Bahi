@@ -5,6 +5,7 @@ import '../../../core/models/buyer.dart';
 import '../../../core/models/inventory_item.dart';
 import '../../../core/providers/connectivity_provider.dart';
 import '../../../core/theme/colors.dart';
+import '../../../core/services/write_retry.dart';
 import '../../../core/utils/offline_guard.dart';
 import '../../../core/widgets/field_with_mic.dart';
 import '../providers/bill_providers.dart';
@@ -248,7 +249,7 @@ class _AddBillScreenState extends ConsumerState<AddBillScreen> {
       setState(() => _isSaving = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+          SnackBar(content: Text(saveErrorMessage(e))),
         );
       }
     }
