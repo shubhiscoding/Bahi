@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/strings.dart';
 import '../../../core/models/inventory_item.dart';
+import '../../../core/services/write_retry.dart';
 import '../../../core/providers/connectivity_provider.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/utils/offline_guard.dart';
@@ -115,7 +116,7 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
       setState(() => _isSaving = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+          SnackBar(content: Text(saveErrorMessage(e))),
         );
       }
     }

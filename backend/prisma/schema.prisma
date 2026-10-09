@@ -60,8 +60,33 @@ model Business {
   buyers      Buyer[]
   bills       Bill[]
   deposits    Deposit[]
+  idempotencyKeys IdempotencyKey[]
 
   @@map("businesses")
+}
+
+/// Replay protection for retried writes (bill create, item create,
+/// add-stock). The client sends an Idempotency-Key header; the first
+/// successful write stores its response here in the SAME transaction as
+/// the write itself, so a retry after a client-side timeout returns the
+/// stored response instead of writing a second bill / item / stock bump.
+/// Scoped per business. Derived bookkeeping only — rows are never read
+/// outside replay, so the Cascade on business is safe.
+model IdempotencyKey {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  key        String
+  // Which endpoint produced the stored response (e.g. 'bill.create'). Part
+  // of the unique key, so a key only ever replays on the same endpoint.
+  scope      String
+  statusCode Int      @map("status_code")
+  response   Json     @db.JsonB
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, scope, key])
+  @@map("idempotency_keys")
 }
 
 /// Global catalog of unit names (डिब्बा, किलो, etc.) — deduplicated across

@@ -1,9 +1,13 @@
 import 'dart:async';
+
+import 'package:dio/dio.dart';
+
 import '../../../core/models/inventory_item.dart';
 import '../../../core/models/price_history_point.dart';
 import '../../../core/services/api_client.dart';
 import '../../../core/services/local_cache_service.dart';
 import '../../../core/services/socket_service.dart';
+import '../../../core/services/write_retry.dart';
 
 /// Inventory repository — calls the Node/Express backend. Every write
 /// sets updated_by/updated_at server-side (hard requirement per §9),
@@ -124,9 +128,13 @@ class InventoryRepository {
     required int quantity,
     required String unit,
   }) async {
-    final response = await ApiClient.instance.post(
-      '/businesses/$businessId/items',
-      data: {'name': name, 'price': price, 'quantity': quantity, 'unit': unit},
+    final key = newIdempotencyKey();
+    final response = await retryOnNetworkTimeout(
+      () => ApiClient.instance.post(
+        '/businesses/$businessId/items',
+        data: {'name': name, 'price': price, 'quantity': quantity, 'unit': unit},
+        options: Options(headers: {idempotencyKeyHeader: key}),
+      ),
     );
     return InventoryItem.fromJson(response.data);
   }
@@ -183,9 +191,15 @@ class InventoryRepository {
     required String itemId,
     required int quantity,
   }) async {
-    final response = await ApiClient.instance.post(
-      '/businesses/$businessId/items/$itemId/add-stock',
-      data: {'quantity': quantity},
+    // Add-stock is an increment, so a blind retry would add the quantity
+    // twice. The shared key makes the server apply it once.
+    final key = newIdempotencyKey();
+    final response = await retryOnNetworkTimeout(
+      () => ApiClient.instance.post(
+        '/businesses/$businessId/items/$itemId/add-stock',
+        data: {'quantity': quantity},
+        options: Options(headers: {idempotencyKeyHeader: key}),
+      ),
     );
     return InventoryItem.fromJson(response.data);
   }

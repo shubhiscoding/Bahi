@@ -1,6 +1,11 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../prisma';
 
+// Every write takes an optional transaction client (defaults to the shared
+// client). Idempotent routes pass the tx from runIdempotent so the write and
+// its replay record commit together.
+type Db = Prisma.TransactionClient;
+
 export interface ItemInput {
   name: string;
   price: number;
@@ -24,10 +29,10 @@ export interface ItemUpdateInput {
  * Silently no-ops if the unit isn't linked (e.g. a stale/unknown string);
  * item saves should never fail because of this bookkeeping.
  */
-async function touchUnitLastUsed(businessId: string, unitName: string) {
-  const unit = await prisma.unit.findUnique({ where: { name: unitName } });
+async function touchUnitLastUsed(db: Db, businessId: string, unitName: string) {
+  const unit = await db.unit.findUnique({ where: { name: unitName } });
   if (!unit) return;
-  await prisma.businessUnit.updateMany({
+  await db.businessUnit.updateMany({
     where: { businessId, unitId: unit.id },
     data: { lastUsedAt: new Date() },
   });
@@ -69,8 +74,8 @@ export const inventoryService = {
   // updated_by/updated_at are ALWAYS set server-side here — this is the
   // hard requirement carried over from the original plan (§9): no write
   // path may ever create/update a row without stamping who and when.
-  async create(businessId: string, updatedBy: string, input: ItemInput) {
-    const item = await prisma.inventoryItem.create({
+  async create(businessId: string, updatedBy: string, input: ItemInput, db: Db = prisma) {
+    const item = await db.inventoryItem.create({
       data: {
         businessId,
         name: input.name,
@@ -83,10 +88,10 @@ export const inventoryService = {
     });
 
     // Seed the price history with the starting price (Phase 7 §A).
-    await prisma.inventoryPriceHistory.create({
+    await db.inventoryPriceHistory.create({
       data: { itemId: item.id, price: item.price, editedBy: updatedBy },
     });
-    await touchUnitLastUsed(businessId, input.unit);
+    await touchUnitLastUsed(db, businessId, input.unit);
 
     return item;
   },
@@ -133,7 +138,7 @@ export const inventoryService = {
       }
     }
 
-    await touchUnitLastUsed(item.businessId, input.unit);
+    await touchUnitLastUsed(prisma, item.businessId, input.unit);
 
     return item;
   },
@@ -143,10 +148,10 @@ export const inventoryService = {
    * touch price/InventoryPriceHistory; logs to InventoryEditLog with
    * source: 'restock' so future UI can tell this apart from a manual edit.
    */
-  async addStock(itemId: string, updatedBy: string, addQuantity: number) {
-    const existing = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: itemId } });
+  async addStock(itemId: string, updatedBy: string, addQuantity: number, db: Db = prisma) {
+    const existing = await db.inventoryItem.findUniqueOrThrow({ where: { id: itemId } });
 
-    const item = await prisma.inventoryItem.update({
+    const item = await db.inventoryItem.update({
       where: { id: itemId },
       data: {
         quantity: { increment: addQuantity },
@@ -155,7 +160,7 @@ export const inventoryService = {
       },
     });
 
-    await prisma.inventoryEditLog.create({
+    await db.inventoryEditLog.create({
       data: {
         itemId: item.id,
         editedBy: updatedBy,

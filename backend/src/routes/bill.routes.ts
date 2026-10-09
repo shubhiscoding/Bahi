@@ -7,6 +7,7 @@ import { prisma } from '../prisma';
 import { emitToBusiness } from '../sockets';
 import { asyncHandler } from '../utils/asyncHandler';
 import { isFiniteNonNegativeNumber, isPositiveInteger } from '../utils/validation';
+import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey, runIdempotent } from '../utils/idempotency';
 
 // Mounted at /businesses/:businessId/bills — see index.ts
 export const billRoutes = Router({ mergeParams: true });
@@ -19,6 +20,11 @@ billRoutes.post(
   asyncHandler(async (req, res) => {
     const businessId = req.params.businessId;
     const { buyerId, billDate, items, markPaidNow } = req.body;
+
+    const idempotencyKey = parseIdempotencyKey(req.get(IDEMPOTENCY_KEY_HEADER));
+    if (idempotencyKey === null) {
+      return res.status(400).json({ error: 'INVALID_IDEMPOTENCY_KEY' });
+    }
 
     if (!buyerId || typeof buyerId !== 'string') {
       return res.status(400).json({ error: 'BUYER_ID_REQUIRED' });
@@ -56,17 +62,28 @@ billRoutes.post(
       return res.status(400).json({ error: 'ITEM_NOT_FOUND' });
     }
 
-    const bill = await billService.create(businessId, req.user!.id, {
-      buyerId,
-      billDate: billDate ? new Date(billDate) : new Date(),
-      items: items.map((l: any) => ({
-        itemId: l.itemId,
-        quantity: Number(l.quantity),
-        price: Number(l.price),
-      })),
-      markPaidNow: Boolean(markPaidNow),
+    // A replayed request (same Idempotency-Key) returns the bill the first
+    // attempt already created — no second write, no second socket broadcast.
+    const outcome = await runIdempotent({
+      businessId,
+      key: idempotencyKey,
+      scope: 'bill.create',
+      statusCode: 201,
+      work: (tx) =>
+        billService.createInTx(tx, businessId, req.user!.id, {
+          buyerId,
+          billDate: billDate ? new Date(billDate) : new Date(),
+          items: items.map((l: any) => ({
+            itemId: l.itemId,
+            quantity: Number(l.quantity),
+            price: Number(l.price),
+          })),
+          markPaidNow: Boolean(markPaidNow),
+        }),
     });
+    if (outcome.replayed) return res.status(outcome.statusCode).json(outcome.body);
 
+    const bill = outcome.body;
     emitToBusiness(businessId, 'bill:created', bill);
     // Emit the FULL item, not just its id — the Flutter socket handler
     // (InventoryRepository.onUpdated) parses whatever payload arrives

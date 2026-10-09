@@ -5,6 +5,7 @@ import { inventoryService } from '../services/inventoryService';
 import { prisma } from '../prisma';
 import { emitToBusiness } from '../sockets';
 import { asyncHandler } from '../utils/asyncHandler';
+import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey, runIdempotent } from '../utils/idempotency';
 import { isFiniteNonNegativeNumber, isNonNegativeInteger, isPositiveInteger } from '../utils/validation';
 
 // Mounted at /businesses/:businessId/items — see index.ts
@@ -40,6 +41,11 @@ inventoryRoutes.post(
   '/',
   requireMembership,
   asyncHandler(async (req, res) => {
+    const idempotencyKey = parseIdempotencyKey(req.get(IDEMPOTENCY_KEY_HEADER));
+    if (idempotencyKey === null) {
+      return res.status(400).json({ error: 'INVALID_IDEMPOTENCY_KEY' });
+    }
+
     const { name, price, quantity, unit } = req.body;
     if (!name?.trim() || price == null || quantity == null || !unit?.trim()) {
       return res.status(400).json({ error: 'name, price, quantity, unit are required' });
@@ -53,15 +59,29 @@ inventoryRoutes.post(
       return res.status(400).json({ error: 'INVALID_QUANTITY' });
     }
 
-    const item = await inventoryService.create(req.params.businessId, req.user!.id, {
-      name: name.trim(),
-      price: Number(price),
-      quantity: Number(quantity),
-      unit: unit.trim(),
+    const businessId = req.params.businessId;
+    const outcome = await runIdempotent({
+      businessId,
+      key: idempotencyKey,
+      scope: 'item.create',
+      statusCode: 201,
+      work: (tx) =>
+        inventoryService.create(
+          businessId,
+          req.user!.id,
+          {
+            name: name.trim(),
+            price: Number(price),
+            quantity: Number(quantity),
+            unit: unit.trim(),
+          },
+          tx,
+        ),
     });
+    if (outcome.replayed) return res.status(outcome.statusCode).json(outcome.body);
 
-    emitToBusiness(req.params.businessId, 'item:created', item);
-    res.status(201).json(item);
+    emitToBusiness(businessId, 'item:created', outcome.body);
+    res.status(201).json(outcome.body);
   }),
 );
 
@@ -133,14 +153,31 @@ inventoryRoutes.post(
   requireMembership,
   requireItemInBusiness,
   asyncHandler(async (req, res) => {
+    const idempotencyKey = parseIdempotencyKey(req.get(IDEMPOTENCY_KEY_HEADER));
+    if (idempotencyKey === null) {
+      return res.status(400).json({ error: 'INVALID_IDEMPOTENCY_KEY' });
+    }
+
     const { quantity } = req.body;
     if (!isPositiveInteger(quantity)) {
       return res.status(400).json({ error: 'INVALID_QUANTITY' });
     }
 
-    const item = await inventoryService.addStock(req.params.itemId, req.user!.id, Number(quantity));
-    emitToBusiness(req.params.businessId, 'item:updated', item);
-    res.json(item);
+    // Add-stock is an increment — replaying it without this check would
+    // add the quantity a second time after a client-side timeout.
+    const businessId = req.params.businessId;
+    const outcome = await runIdempotent({
+      businessId,
+      key: idempotencyKey,
+      scope: 'item.add-stock',
+      statusCode: 200,
+      work: (tx) =>
+        inventoryService.addStock(req.params.itemId, req.user!.id, Number(quantity), tx),
+    });
+    if (outcome.replayed) return res.status(outcome.statusCode).json(outcome.body);
+
+    emitToBusiness(businessId, 'item:updated', outcome.body);
+    res.json(outcome.body);
   }),
 );
 
