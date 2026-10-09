@@ -67,7 +67,7 @@ export const inventoryService = {
   async list(businessId: string) {
     return prisma.inventoryItem.findMany({
       where: { businessId },
-      orderBy: { name: 'asc' },
+      orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
   },
 

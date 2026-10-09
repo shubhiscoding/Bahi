@@ -49,7 +49,7 @@ class DepositDetailScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  formatAbsoluteHindi(deposit.paidAt),
+                  formatDateDDMMYY(deposit.paidAt),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.inkSoft),
                 ),
                 const SizedBox(height: 16),
@@ -121,7 +121,7 @@ class _SettledBillRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    formatAbsoluteHindi(allocation.billDate),
+                    formatDateDDMMYY(allocation.billDate),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   Text(

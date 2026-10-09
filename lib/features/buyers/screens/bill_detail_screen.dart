@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/strings.dart';
 import '../../../core/models/bill.dart';
 import '../../../core/theme/colors.dart';
@@ -18,7 +19,7 @@ class BillDetailScreen extends ConsumerWidget {
   const BillDetailScreen({super.key, required this.billId});
 
   Future<void> _showRecordPaymentSheet(BuildContext context, WidgetRef ref, double maxAmount) async {
-    final amount = await showAmountInputSheet(
+    final payment = await showAmountInputSheet(
       context,
       title: Strings.recordPayment,
       hintText: Strings.paymentAmount,
@@ -26,15 +27,61 @@ class BillDetailScreen extends ConsumerWidget {
       initialValue: maxAmount,
     );
 
-    if (amount == null || amount <= 0) return;
+    if (payment == null || payment.amount <= 0) return;
     if (!await ensureOnline(context)) return;
     try {
-      await ref.read(addPaymentProvider((billId: billId, amount: amount)).future);
+      await ref.read(
+        addPaymentProvider((billId: billId, amount: payment.amount, paidAt: payment.paidAt)).future,
+      );
       ref.invalidate(billsForBuyerProvider);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('त्रुटि: ${e.toString()}')),
+        );
+      }
+    }
+  }
+
+  Future<void> _shareBill(BuildContext context, Bill bill) async {
+    final lines = <String>[
+      'बही — बिल विवरण',
+      'खरीदार: ${bill.buyerName ?? '?'}',
+      'तारीख़: ${formatDateDDMMYY(bill.billDate)}',
+      '',
+      'सामान:',
+      for (final item in bill.items ?? [])
+        '• ${item.itemName ?? '?'} — ${item.quantity} × ₹${item.price.toStringAsFixed(0)} = ₹${item.subtotal.toStringAsFixed(0)}',
+      '',
+      'कुल: ₹${bill.total.toStringAsFixed(0)}',
+      '${Strings.totalPaid}: ₹${bill.paid.toStringAsFixed(0)}',
+      '${Strings.totalDue}: ₹${bill.due.toStringAsFixed(0)}',
+      '${Strings.billedBy}: ${NameFormatter.editedByFormat(bill.createdByName ?? '?')}',
+    ];
+
+    final payments = bill.payments ?? [];
+    if (payments.isNotEmpty) {
+      lines
+        ..add('')
+        ..add('${Strings.paymentsMade}:');
+      for (final payment in payments) {
+        lines.add(
+          '• ₹${payment.amount.toStringAsFixed(0)} — ${formatDateDDMMYY(payment.paidAt)} — ${NameFormatter.editedByFormat(payment.recordedByName)}',
+        );
+      }
+    }
+
+    // Keep the actual backend bill ID last so it is easy to find and reference.
+    lines
+      ..add('')
+      ..add('बिल ID: ${bill.id}');
+
+    try {
+      await Share.share(lines.join('\n'));
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(Strings.errorOccurred)),
         );
       }
     }
@@ -51,6 +98,17 @@ class BillDetailScreen extends ConsumerWidget {
         elevation: 0,
         foregroundColor: AppColors.inkPrimary,
         title: Text(Strings.bill),
+        actions: billAsync.when(
+          data: (bill) => <Widget>[
+            IconButton(
+              tooltip: 'बिल साझा करें',
+              onPressed: () => _shareBill(context, bill),
+              icon: const Icon(Icons.share),
+            ),
+          ],
+          loading: () => const <Widget>[],
+          error: (err, stack) => const <Widget>[],
+        ),
       ),
       body: billAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
@@ -75,7 +133,7 @@ class BillDetailScreen extends ConsumerWidget {
                       Text(bill.buyerName ?? '?', style: Theme.of(context).textTheme.headlineSmall),
                       const SizedBox(height: 4),
                       Text(
-                        formatAbsoluteHindi(bill.billDate),
+                        formatDateDDMMYY(bill.billDate),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.inkSoft),
                       ),
                       const SizedBox(height: 20),
@@ -300,7 +358,7 @@ class _PaymentRow extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 Text(
-                  formatAbsoluteHindi(payment.paidAt),
+                  formatDateDDMMYY(payment.paidAt),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.inkSoft),
                 ),
               ],

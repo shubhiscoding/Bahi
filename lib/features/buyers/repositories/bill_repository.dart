@@ -32,7 +32,9 @@ class BillRepository {
         '/businesses/$businessId/bills',
         data: {
           'buyerId': buyerId,
-          'billDate': billDate.toIso8601String(),
+          // UTC so the offset is explicit; a zoneless local string would be
+          // read in the server's timezone and shift the bill's time.
+          'billDate': billDate.toUtc().toIso8601String(),
           'items': items.map((i) => i.toJson()).toList(),
           'markPaidNow': markPaidNow,
         },
@@ -118,10 +120,11 @@ class BillRepository {
     required String businessId,
     required String billId,
     required double amount,
+    required DateTime paidAt,
   }) async {
     await ApiClient.instance.post(
       '/businesses/$businessId/bills/$billId/payments',
-      data: {'amount': amount},
+      data: {'amount': amount, 'paidAt': paidAt.toUtc().toIso8601String()},
     );
   }
 
@@ -131,10 +134,11 @@ class BillRepository {
     required String businessId,
     required String buyerId,
     required double amount,
+    required DateTime paidAt,
   }) async {
     await ApiClient.instance.post(
       '/businesses/$businessId/buyers/$buyerId/payments',
-      data: {'amount': amount},
+      data: {'amount': amount, 'paidAt': paidAt.toUtc().toIso8601String()},
     );
   }
 }

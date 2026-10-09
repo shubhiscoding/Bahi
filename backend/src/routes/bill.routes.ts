@@ -6,7 +6,7 @@ import { inventoryService } from '../services/inventoryService';
 import { prisma } from '../prisma';
 import { emitToBusiness } from '../sockets';
 import { asyncHandler } from '../utils/asyncHandler';
-import { isFiniteNonNegativeNumber, isPositiveInteger } from '../utils/validation';
+import { isFiniteNonNegativeNumber, isPositiveInteger, parseOptionalDateTime } from '../utils/validation';
 import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey, runIdempotent } from '../utils/idempotency';
 
 // Mounted at /businesses/:businessId/bills — see index.ts
@@ -116,6 +116,8 @@ billRoutes.post(
   requireMembership,
   asyncHandler(async (req, res) => {
     const { amount } = req.body;
+    const paidAt = parseOptionalDateTime(req.body.paidAt);
+    if (paidAt === null) return res.status(400).json({ error: 'INVALID_PAID_AT' });
     if (!isFiniteNonNegativeNumber(amount) || Number(amount) <= 0) {
       return res.status(400).json({ error: 'INVALID_AMOUNT' });
     }
@@ -126,6 +128,7 @@ billRoutes.post(
         req.params.billId,
         req.user!.id,
         Number(amount),
+        paidAt,
       );
       emitToBusiness(req.params.businessId, 'bill:updated', { id: req.params.billId });
       res.status(201).json(payment);

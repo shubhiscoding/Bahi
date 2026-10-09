@@ -17,8 +17,9 @@ import '../../team/providers/team_providers.dart';
 /// audibly), with typing as fallback.
 class AddEditItemScreen extends ConsumerStatefulWidget {
   final InventoryItem? item; // null = create, set = edit
+  final bool createdFromBilling;
 
-  const AddEditItemScreen({super.key, this.item});
+  const AddEditItemScreen({super.key, this.item, this.createdFromBilling = false});
 
   @override
   ConsumerState<AddEditItemScreen> createState() => _AddEditItemScreenState();
@@ -81,20 +82,24 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
       return;
     }
 
-    final quantityText = _quantityController.text.trim();
-    if (quantityText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('सारी जानकारी भरें')),
-      );
-      return;
-    }
+    var quantity = 0;
+    if (!widget.createdFromBilling) {
+      final quantityText = _quantityController.text.trim();
+      if (quantityText.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('सारी जानकारी भरें')),
+        );
+        return;
+      }
 
-    final quantity = int.tryParse(quantityText);
-    if (quantity == null || quantity < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('सही मात्रा डालें')),
-      );
-      return;
+      final enteredQuantity = int.tryParse(quantityText);
+      if (enteredQuantity == null || enteredQuantity < 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('सही मात्रा डालें')),
+        );
+        return;
+      }
+      quantity = enteredQuantity;
     }
 
     setState(() => _isSaving = true);
@@ -227,13 +232,15 @@ class _AddEditItemScreenState extends ConsumerState<AddEditItemScreen> {
                 ),
               const SizedBox(height: 20),
 
-              FieldWithMic(
-                label: Strings.itemQuantity,
-                controller: _quantityController,
-                keyboardType: TextInputType.number,
-                isNumeric: true,
-              ),
-              const SizedBox(height: 20),
+              if (!widget.createdFromBilling) ...[
+                FieldWithMic(
+                  label: Strings.itemQuantity,
+                  controller: _quantityController,
+                  keyboardType: TextInputType.number,
+                  isNumeric: true,
+                ),
+                const SizedBox(height: 20),
+              ],
 
               // Price field
               FieldWithMic(

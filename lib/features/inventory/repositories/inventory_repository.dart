@@ -76,7 +76,7 @@ class InventoryRepository {
         return;
       }
       final item = InventoryItem.fromJson(json);
-      current = [...current, item]..sort((a, b) => a.name.compareTo(b.name));
+      current = [...current, item]..sort(_compareItemsByUpdatedAt);
       emit();
       recache();
     }
@@ -89,7 +89,7 @@ class InventoryRepository {
       }
       final item = InventoryItem.fromJson(json);
       current = current.map((i) => i.id == item.id ? item : i).toList()
-        ..sort((a, b) => a.name.compareTo(b.name));
+        ..sort(_compareItemsByUpdatedAt);
       emit();
       recache();
     }
@@ -203,4 +203,9 @@ class InventoryRepository {
     );
     return InventoryItem.fromJson(response.data);
   }
+}
+
+int _compareItemsByUpdatedAt(InventoryItem a, InventoryItem b) {
+  final byUpdatedAt = b.updatedAt.compareTo(a.updatedAt);
+  return byUpdatedAt != 0 ? byUpdatedAt : a.name.compareTo(b.name);
 }

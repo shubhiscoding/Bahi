@@ -10,8 +10,8 @@ import '../../inventory/screens/add_edit_item_screen.dart';
 
 /// Item picker for a bill line (Phase 8 §F, Phase 14 revised) — existing
 /// inventory items, plus a "+ नया सामान जोड़ें" row that opens the full
-/// item-creation screen. Same search+scroll shape as BuyerPicker (including
-/// the always-present trailing add-new row even on empty search).
+/// item-creation screen. The add-new row stays pinned below the scrollable
+/// results, including when the search has no matches.
 ///
 /// Deliberately does NOT filter out items with quantity 0 — a shopkeeper
 /// may still want to bill something that's out of stock (e.g. on
@@ -42,7 +42,9 @@ class _BillItemPickerState extends ConsumerState<BillItemPicker> {
 
   Future<void> _handleAddNew() async {
     final created = await Navigator.of(context).push<InventoryItem>(
-      MaterialPageRoute(builder: (_) => const AddEditItemScreen()),
+      MaterialPageRoute(
+        builder: (_) => const AddEditItemScreen(createdFromBilling: true),
+      ),
     );
     if (created != null) {
       widget.onSelected(created);
@@ -80,66 +82,69 @@ class _BillItemPickerState extends ConsumerState<BillItemPicker> {
                 : items.where((i) => matchesSearch(i.name, _searchQuery)).toList();
             final showNoResults = filtered.isEmpty && _searchQuery.isNotEmpty;
 
-            // Bounded height so ~4 rows show by default; the rest of the
-            // list (and the add-new row) is one scroll away — same shape as
-            // BuyerPicker. The add-new row is always the last child, never
-            // conditionally omitted.
+            // Keep the add-new row pinned below a bounded, independently
+            // scrolling results list.
             return Container(
-              constraints: const BoxConstraints(maxHeight: 4.5 * 56),
+              height: 4.5 * 56,
               decoration: BoxDecoration(
                 border: Border.all(color: AppColors.border),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: ListView(
-                shrinkWrap: true,
+              child: Column(
                 children: [
-                  for (final item in filtered) ...[
-                    InkWell(
-                      onTap: () => widget.onSelected(item),
-                      child: Container(
-                        height: 56,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        color: widget.selectedItem?.id == item.id ? AppColors.primarySoft : null,
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                item.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                      fontWeight: widget.selectedItem?.id == item.id
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
+                  Expanded(
+                    child: ListView(
+                      padding: EdgeInsets.zero,
+                      children: [
+                        for (final item in filtered) ...[
+                          InkWell(
+                            onTap: () => widget.onSelected(item),
+                            child: Container(
+                              height: 56,
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              color: widget.selectedItem?.id == item.id ? AppColors.primarySoft : null,
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      item.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                            fontWeight: widget.selectedItem?.id == item.id
+                                                ? FontWeight.bold
+                                                : FontWeight.normal,
+                                          ),
                                     ),
+                                  ),
+                                  Text(
+                                    '₹${item.price.toStringAsFixed(0)} / ${item.unit}',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: AppColors.inkSoft,
+                                        ),
+                                  ),
+                                  if (widget.selectedItem?.id == item.id) ...[
+                                    const SizedBox(width: 8),
+                                    Icon(Icons.check_circle, color: AppColors.primary, size: 20),
+                                  ],
+                                ],
                               ),
                             ),
-                            Text(
-                              '₹${item.price.toStringAsFixed(0)} / ${item.unit}',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: AppColors.inkSoft,
-                                  ),
+                          ),
+                          Divider(height: 1, color: AppColors.border),
+                        ],
+                        if (showNoResults)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            child: Text(
+                              Strings.noProductsFound,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.inkSoft),
                             ),
-                            if (widget.selectedItem?.id == item.id) ...[
-                              const SizedBox(width: 8),
-                              Icon(Icons.check_circle, color: AppColors.primary, size: 20),
-                            ],
-                          ],
-                        ),
-                      ),
+                          ),
+                      ],
                     ),
-                    Divider(height: 1, color: AppColors.border),
-                  ],
-                  if (showNoResults) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: Text(
-                        Strings.noProductsFound,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.inkSoft),
-                      ),
-                    ),
-                    Divider(height: 1, color: AppColors.border),
-                  ],
+                  ),
+                  Divider(height: 1, color: AppColors.border),
                   _AddNewProductRow(onTap: _handleAddNew),
                 ],
               ),
@@ -152,7 +157,7 @@ class _BillItemPickerState extends ConsumerState<BillItemPicker> {
 }
 
 /// Visually distinct from item rows (accent-tinted background + bold add
-/// icon) — always present at the bottom of the list, matching BuyerPicker's
+/// icon) — pinned at the bottom of the visible list, matching BuyerPicker's
 /// pattern. Tapping opens the full add-item screen (create new inventory).
 class _AddNewProductRow extends StatelessWidget {
   final VoidCallback onTap;

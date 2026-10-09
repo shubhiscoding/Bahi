@@ -550,7 +550,7 @@ class _PriceChart extends StatelessWidget {
                   return Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: Text(
-                      '${d.day}/${d.month}',
+                      formatDateDDMMYY(d),
                       style: const TextStyle(fontSize: 11, color: AppColors.inkSoft),
                     ),
                   );

@@ -18,6 +18,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # Auth (Supabase Auth / Google OAuth only — all data now goes through
   # the Node/Express backend below, not direct Supabase client calls)
