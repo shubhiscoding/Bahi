@@ -8,11 +8,30 @@ import { emitToBusiness } from '../sockets';
 import { asyncHandler } from '../utils/asyncHandler';
 import { isFiniteNonNegativeNumber, isPositiveInteger, parseOptionalDateTime } from '../utils/validation';
 import { IDEMPOTENCY_KEY_HEADER, parseIdempotencyKey, runIdempotent } from '../utils/idempotency';
+import { parseDateRange, parseSortOrder } from '../utils/dateRange';
 
 // Mounted at /businesses/:businessId/bills — see index.ts
 export const billRoutes = Router({ mergeParams: true });
 
 billRoutes.use(requireAuth);
+
+billRoutes.get(
+  '/',
+  requireMembership,
+  asyncHandler(async (req, res) => {
+    const filters = parseDateRange(req.query);
+    const sort = parseSortOrder(req.query.sort);
+    if (!filters) return res.status(400).json({ error: 'INVALID_DATE_RANGE' });
+    if (!sort) return res.status(400).json({ error: 'INVALID_SORT_ORDER' });
+    const paidFilter = req.query.paid;
+    if (paidFilter != null && paidFilter !== 'true' && paidFilter !== 'false') {
+      return res.status(400).json({ error: 'INVALID_PAID_FILTER' });
+    }
+    const bills = await billService.listForBusiness(req.params.businessId, filters, sort);
+    if (paidFilter == null) return res.json(bills);
+    res.json(bills.filter((bill) => (paidFilter === 'true' ? bill.due <= 0 : bill.due > 0)));
+  }),
+);
 
 billRoutes.post(
   '/',

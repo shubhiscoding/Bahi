@@ -36,6 +36,7 @@ class Strings {
 
   // Team
   static const team = 'साथी';
+  static const hisab = 'हिसाब';
   static const addCoworker = 'साथी जोड़ें';
   static const removeMember = 'हटाएँ';
   static const owner = 'Admin';

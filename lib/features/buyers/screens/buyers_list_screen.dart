@@ -68,6 +68,8 @@ class _BuyersListScreenState extends ConsumerState<BuyersListScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        // Both tab screens live in one IndexedStack, so their default Hero tags clash on push.
+        heroTag: null,
         onPressed: () {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const AddBillScreen()),
