@@ -19,7 +19,9 @@ import '../providers/team_providers.dart';
 /// Member list, invite (generate-and-share a fresh OTP-style code),
 /// owner-only remove.
 class TeamScreen extends ConsumerWidget {
-  const TeamScreen({super.key});
+  final bool showAppBar;
+
+  const TeamScreen({super.key, this.showAppBar = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -31,6 +33,14 @@ class TeamScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: showAppBar
+          ? AppBar(
+              backgroundColor: AppColors.background,
+              elevation: 0,
+              foregroundColor: AppColors.inkPrimary,
+              title: Text(Strings.team),
+            )
+          : null,
       body: Column(
         children: [
           if (isLocalBackend) const _DevRoleSwitcher(),

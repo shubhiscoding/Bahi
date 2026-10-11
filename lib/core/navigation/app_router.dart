@@ -10,7 +10,7 @@ import '../../features/inventory/screens/app_shell_screen.dart';
 /// App router — routes based on auth + business membership state
 /// No session → Sign-In
 /// Session + no business → Create/Join
-/// Session + business → Main app shell (Inventory/Team tabs)
+/// Session + business → Main app shell (inventory, billing, and Hisab tabs)
 class AppRouter extends ConsumerWidget {
   const AppRouter({super.key});
 
@@ -60,7 +60,7 @@ class AppRouter extends ConsumerWidget {
                   return const BusinessCreateOrJoinScreen();
                 }
 
-                // Has business → main app shell (Inventory/Team tabs)
+                // Has business → main app shell (inventory, billing, and Hisab tabs)
                 return const AppShellScreen();
               },
             );

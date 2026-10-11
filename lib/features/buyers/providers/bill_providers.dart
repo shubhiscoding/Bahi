@@ -4,6 +4,7 @@ import '../../business/providers/business_providers.dart';
 import '../repositories/bill_repository.dart';
 import 'buyer_providers.dart';
 import 'deposit_providers.dart';
+import '../../hisab/providers/hisab_providers.dart';
 
 /// Input for creating a bill (Phase 8 §D/§F).
 class CreateBillInput {
@@ -42,6 +43,10 @@ final createBillProvider =
   ref.invalidate(buyersProvider);
   ref.invalidate(buyerDetailProvider);
   ref.invalidate(billsForBuyerProvider);
+  ref.invalidate(hisabSummaryProvider);
+  ref.invalidate(hisabBillsProvider);
+  ref.invalidate(hisabPaymentsProvider);
+  ref.invalidate(hisabRankingsProvider);
   return bill;
 });
 
@@ -109,6 +114,10 @@ final addPaymentProvider =
   // Every payment now also creates a Deposit (Phase 10) — refetch that
   // list too, same "every write refetches everything that reads it".
   ref.invalidate(depositsForBuyerProvider);
+  ref.invalidate(hisabSummaryProvider);
+  ref.invalidate(hisabBillsProvider);
+  ref.invalidate(hisabPaymentsProvider);
+  ref.invalidate(hisabRankingsProvider);
 });
 
 /// Buyer-level "record payment" (Phase 9) — one amount, allocated
@@ -130,4 +139,8 @@ final recordBuyerPaymentProvider =
   ref.invalidate(billsForBuyerProvider);
   ref.invalidate(billDetailProvider);
   ref.invalidate(depositsForBuyerProvider);
+  ref.invalidate(hisabSummaryProvider);
+  ref.invalidate(hisabBillsProvider);
+  ref.invalidate(hisabPaymentsProvider);
+  ref.invalidate(hisabRankingsProvider);
 });

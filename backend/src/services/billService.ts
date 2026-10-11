@@ -171,6 +171,39 @@ export const billService = {
     return withDue.filter((b) => (filters.paid ? b.due <= 0 : b.due > 0));
   },
 
+  /** Business-wide bill list used by Hisab. */
+  async listForBusiness(
+    businessId: string,
+    filters: { dateFrom?: Date; dateTo?: Date },
+    sort: 'asc' | 'desc' = 'desc',
+  ) {
+    const bills = await prisma.bill.findMany({
+      where: {
+        businessId,
+        ...(filters.dateFrom || filters.dateTo
+          ? { billDate: { gte: filters.dateFrom, lte: filters.dateTo } }
+          : {}),
+      },
+      include: { buyer: { select: { id: true, name: true } }, payments: { select: { amount: true } } },
+      orderBy: [{ billDate: sort }, { id: sort }],
+    });
+
+    return bills.map((bill) => {
+      const total = Number(bill.total);
+      const paid = bill.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+      return {
+        id: bill.id,
+        buyerId: bill.buyer.id,
+        buyerName: bill.buyer.name,
+        billDate: bill.billDate,
+        total,
+        paid,
+        due: Math.max(0, total - paid),
+        createdAt: bill.createdAt,
+      };
+    });
+  },
+
   /**
    * Records a (possibly partial) payment. Rejects overpayment beyond the
    * remaining due (400 OVERPAYMENT) — a due balance should never go

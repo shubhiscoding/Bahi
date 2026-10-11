@@ -13,14 +13,14 @@ import '../../../core/widgets/offline_banner.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../business/providers/business_providers.dart';
 import '../../buyers/screens/buyers_list_screen.dart';
+import '../../hisab/screens/hisab_dashboard_screen.dart';
 import '../../team/providers/team_providers.dart';
 import 'inventory_list_screen.dart';
 import '../../team/screens/team_screen.dart';
 
-/// App Shell — wraps Inventory/Bill/Team tabs with a persistent user
+/// App Shell — wraps Inventory/Bill/Hisab tabs with a persistent user
 /// avatar header (design.md rule 4: always visible, never tucked into a
-/// menu) and a bottom nav with max 3 icons (rule 5) — Phase 8 added Bill;
-/// a future Dashboard tab will deliberately relax this to 4.
+/// menu) and a three-item bottom nav for inventory, billing, and Hisab.
 class AppShellScreen extends ConsumerStatefulWidget {
   const AppShellScreen({super.key});
 
@@ -132,6 +132,7 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -166,15 +167,13 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
               children: const [
                 InventoryListScreen(),
                 BuyersListScreen(),
-                TeamScreen(),
+                HisabDashboardScreen(),
               ],
             ),
           ),
         ],
       ),
-      // 3 tabs — still within the existing max-3-icon rule (Phase 8's
-      // Dashboard tab was explicitly deferred; when it lands, the rule is
-      // deliberately relaxed to 4, per the confirmed decision).
+      // Three tabs: inventory, billing, and the sales dashboard.
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedTab,
         onTap: (idx) => setState(() => _selectedTab = idx),
@@ -188,8 +187,8 @@ class _AppShellScreenState extends ConsumerState<AppShellScreen> {
             label: Strings.bill,
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.people, size: 28),
-            label: Strings.team,
+            icon: const Icon(Icons.bar_chart, size: 28),
+            label: Strings.hisab,
           ),
         ],
       ),
@@ -254,9 +253,10 @@ class _SettingsSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -265,6 +265,20 @@ class _SettingsSheet extends ConsumerWidget {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 24),
+
+            OutlinedButton.icon(
+              onPressed: () {
+                final navigator = Navigator.of(context);
+                navigator.pop();
+                navigator.push(
+                  MaterialPageRoute(builder: (_) => const TeamScreen(showAppBar: true)),
+                );
+              },
+              icon: const Icon(Icons.people_outline, size: 24),
+              label: Text(Strings.team),
+            ),
+
+            const SizedBox(height: 16),
 
             OutlinedButton.icon(
               onPressed: () {
@@ -313,6 +327,7 @@ class _SettingsSheet extends ConsumerWidget {
               },
             ),
           ],
+          ),
         ),
       ),
     );
